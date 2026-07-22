@@ -376,7 +376,7 @@
 
     <div class="toolbar-spacer"></div>
 
-    <input type="file" id="fileInput" accept=".swim,.txt,.md,.markdown" style="display:none;">
+    <input type="file" id="fileInput" accept=".swim,.txt,.md,.markdown" aria-label="ファイルを開く" tabindex="-1" style="display:none;">
     <button class="btn btn-sm" id="btnOpenFile">📂 ファイルを開く</button>
     <button class="btn btn-sm" id="btnCopyCode">コードをコピー</button>
     <button class="btn btn-sm btn-accent" id="btnDownloadSwim">.swim 保存</button>
@@ -474,7 +474,7 @@ n1 -&gt; n2 "確認依頼"</pre>
         <div class="toolbar-spacer"></div>
         <button class="btn btn-sm btn-ghost" id="btnToggleDrawer">折りたたむ ▾</button>
       </div>
-      <textarea id="codeArea" readonly spellcheck="false"></textarea>
+      <textarea id="codeArea" aria-label="スイムレーン コード" readonly spellcheck="false"></textarea>
     </div>
   </section>
 </div>
@@ -541,6 +541,17 @@ function uniqueId(base, taken){
   while(taken.includes(id)){ id = base + '_' + n; n++; }
   return id;
 }
+/* IDが図の中で重複していないか確かめる。重複していたら理由を伝えて false を返す。
+   oldId には編集中の項目の元IDを渡す（自分自身との衝突は重複としない）。 */
+function checkDuplicateId(id, oldId){
+  if(allIds().some(x => x === id && x !== oldId)){
+    alert(`ID「${id}」はすでに使われています。
+図の中でIDが重複しないように、別のIDを指定してください。`);
+    return false;
+  }
+  return true;
+}
+
 function allIds(){
   return [...state.lanes, ...state.phases, ...state.nodes].map(x=>x.id);
 }
@@ -610,7 +621,10 @@ function makeSortable(listEl, arr, onReorder, isValidOrder){
 }
 
 /* ============ コード生成（state → .swim） ============ */
-function quote(s){ return '"' + String(s == null ? '' : s).replace(/"/g,'”') + '"'; }
+/* ラベルは常に "..." で囲む。独自形式なので、中の " と \ はエスケープして元の文字を保つ */
+function quote(s){
+  return '"' + String(s == null ? '' : s).replace(/\\/g,'\\\\').replace(/"/g,'\\"') + '"';
+}
 
 function generateCode(){
   const lines = ['swimlane'];
@@ -659,8 +673,10 @@ function parseCode(text){
 
   // "..." で囲まれたラベルを取り出しつつ、残りをトークンに分ける
   const takeLabel = (rest) => {
-    const m = rest.match(/"([^"]*)"/);
-    return { label: m ? m[1] : '', rest: m ? (rest.slice(0, m.index) + ' ' + rest.slice(m.index + m[0].length)) : rest };
+    const m = rest.match(/"((?:[^"\\]|\\.)*)"/);
+    if(!m) return { label:'', rest };
+    const label = m[1].replace(/\\(["\\])/g, '$1');
+    return { label, rest: rest.slice(0, m.index) + ' ' + rest.slice(m.index + m[0].length) };
   };
 
   lines.forEach((raw, i)=>{
@@ -1144,7 +1160,7 @@ function renderBuilder(){
     <div class="card">
       <div class="card-title">方向</div>
       <div class="field">
-        <select id="dirSelect">
+        <select id="dirSelect" aria-label="方向">
           <option value="LR">左から右 (LR)</option>
           <option value="TB">上から下 (TB)</option>
         </select>
@@ -1153,17 +1169,17 @@ function renderBuilder(){
 
     <div class="card">
       <div class="card-title">図のタイトル</div>
-      <div class="field"><input type="text" id="slTitle" placeholder="例: 受注フロー"></div>
+      <div class="field"><input type="text" id="slTitle" aria-label="図のタイトル" placeholder="例: 受注フロー"></div>
     </div>
 
     <div class="card">
       <div class="card-title">レーンを追加</div>
       <div class="row">
-        <div class="field"><label>ID</label><input type="text" id="slLaneId" placeholder="例: sales"></div>
-        <div class="field"><label>表示名</label><input type="text" id="slLaneLabel" placeholder="例: 営業部"></div>
+        <div class="field"><label for="slLaneId">ID</label><input type="text" id="slLaneId" placeholder="例: sales"></div>
+        <div class="field"><label for="slLaneLabel">表示名</label><input type="text" id="slLaneLabel" placeholder="例: 営業部"></div>
       </div>
       <div class="field" style="margin-bottom:8px;">
-        <label>帯の色</label>
+        <label for="slLaneColor">帯の色</label>
         <input type="color" id="slLaneColor" value="#E3F2FD">
         ${colorPresets('slLaneColor', LANE_COLORS)}
       </div>
@@ -1176,8 +1192,8 @@ function renderBuilder(){
       <div class="card-title">フェーズ（工程）を追加</div>
       <p class="hint" style="margin-bottom:10px;">流れの区切りです。未設定でも図形は左から順に並びます。</p>
       <div class="row">
-        <div class="field"><label>ID</label><input type="text" id="slPhaseId" placeholder="例: p1"></div>
-        <div class="field"><label>表示名</label><input type="text" id="slPhaseLabel" placeholder="例: 受付"></div>
+        <div class="field"><label for="slPhaseId">ID</label><input type="text" id="slPhaseId" placeholder="例: p1"></div>
+        <div class="field"><label for="slPhaseLabel">表示名</label><input type="text" id="slPhaseLabel" placeholder="例: 受付"></div>
       </div>
       <button class="add-row-btn" id="slAddPhase">＋ フェーズを追加</button>
       <button class="add-row-btn" id="slPhaseCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
@@ -1187,20 +1203,20 @@ function renderBuilder(){
     <div class="card">
       <div class="card-title">図形を追加</div>
       <div class="row">
-        <div class="field"><label>ID</label><input type="text" id="slNodeId" placeholder="例: n1"></div>
-        <div class="field"><label>表示名</label><input type="text" id="slNodeLabel" placeholder="例: 申込を受ける"></div>
+        <div class="field"><label for="slNodeId">ID</label><input type="text" id="slNodeId" placeholder="例: n1"></div>
+        <div class="field"><label for="slNodeLabel">表示名</label><input type="text" id="slNodeLabel" placeholder="例: 申込を受ける"></div>
       </div>
       <div class="row">
-        <div class="field"><label>レーン</label><select id="slNodeLane"></select></div>
-        <div class="field"><label>フェーズ</label><select id="slNodePhase"></select></div>
+        <div class="field"><label for="slNodeLane">レーン</label><select id="slNodeLane"></select></div>
+        <div class="field"><label for="slNodePhase">フェーズ</label><select id="slNodePhase"></select></div>
       </div>
       <div class="row">
-        <div class="field"><label>形</label>
+        <div class="field"><label for="slNodeShape">形</label>
           <select id="slNodeShape">${SHAPES.map(s=>`<option value="${s.v}">${s.label}</option>`).join('')}</select>
         </div>
       </div>
       <div class="field" style="margin-bottom:8px;">
-        <label>塗り色</label>
+        <label for="slNodeColor">塗り色</label>
         <input type="color" id="slNodeColor" value="#FFFFFF">
         ${colorPresets('slNodeColor', NODE_COLORS)}
       </div>
@@ -1212,14 +1228,14 @@ function renderBuilder(){
     <div class="card">
       <div class="card-title">接続（矢印）を追加</div>
       <div class="row">
-        <div class="field"><label>from</label><select id="slLinkFrom"></select></div>
-        <div class="field"><label>to</label><select id="slLinkTo"></select></div>
+        <div class="field"><label for="slLinkFrom">from</label><select id="slLinkFrom"></select></div>
+        <div class="field"><label for="slLinkTo">to</label><select id="slLinkTo"></select></div>
       </div>
       <div class="row">
-        <div class="field"><label>線種</label>
+        <div class="field"><label for="slLinkStyle">線種</label>
           <select id="slLinkStyle">${LINK_STYLES.map(s=>`<option value="${s.v}">${s.label}</option>`).join('')}</select>
         </div>
-        <div class="field"><label>ラベル（任意）</label><input type="text" id="slLinkLabel" placeholder="例: 承認"></div>
+        <div class="field"><label for="slLinkLabel">ラベル（任意）</label><input type="text" id="slLinkLabel" placeholder="例: 承認"></div>
       </div>
       <button class="add-row-btn" id="slAddLink">＋ 接続を追加</button>
       <button class="add-row-btn" id="slLinkCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
@@ -1273,9 +1289,12 @@ function submitLane(){
     const idx = state.editLaneIdx;
     const oldId = state.lanes[idx].id;
     const id = sanitizeId(rawId || oldId, 'lane');
+    if(!checkDuplicateId(id, oldId)) return;
     if(id !== oldId) state.nodes.forEach(n=>{ if(n.laneId === oldId) n.laneId = id; });
     state.lanes[idx] = { id, label: label || id, color };
   }else{
+    // 自分で入力したIDが埋まっているときは黙って改名せず知らせる（空欄なら自動採番）
+    if(rawId && !checkDuplicateId(sanitizeId(rawId, 'lane'), null)) return;
     const id = uniqueId(sanitizeId(rawId || ('lane' + counters.lane++), 'lane'), allIds());
     state.lanes.push({ id, label: label || id, color });
   }
@@ -1307,9 +1326,11 @@ function submitPhase(){
     const idx = state.editPhaseIdx;
     const oldId = state.phases[idx].id;
     const id = sanitizeId(rawId || oldId, 'phase');
+    if(!checkDuplicateId(id, oldId)) return;
     if(id !== oldId) state.nodes.forEach(n=>{ if(n.phaseId === oldId) n.phaseId = id; });
     state.phases[idx] = { id, label: label || id };
   }else{
+    if(rawId && !checkDuplicateId(sanitizeId(rawId, 'phase'), null)) return;
     const id = uniqueId(sanitizeId(rawId || ('p' + counters.phase++), 'phase'), allIds());
     state.phases.push({ id, label: label || id });
   }
@@ -1346,12 +1367,14 @@ function submitNode(){
     const idx = state.editNodeIdx;
     const oldId = state.nodes[idx].id;
     const id = sanitizeId(rawId || oldId, 'n');
+    if(!checkDuplicateId(id, oldId)) return;
     if(id !== oldId){
       state.links.forEach(e=>{ if(e.from === oldId) e.from = id; if(e.to === oldId) e.to = id; });
     }
     state.nodes[idx] = { id, label: nameFor(id), laneId, phaseId, shape, color };
   }else{
     const base = isDot(shape) ? (shape === 'startdot' ? 'start' : 'end') : ('n' + counters.node++);
+    if(rawId && !checkDuplicateId(sanitizeId(rawId, 'n'), null)) return;
     const id = uniqueId(sanitizeId(rawId || base, 'n'), allIds());
     state.nodes.push({ id, label: nameFor(id), laneId, phaseId, shape, color });
   }
