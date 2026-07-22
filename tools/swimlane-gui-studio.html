@@ -1,0 +1,1731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swimlane GUI Studio</title>
+<link rel="icon" href="../assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon-16x16.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<meta name="description" content="スイムレーン図（業務フロー図）をGUIで組み立てられるツール。ブラウザ単体で動作し、外部サーバーへの通信は行いません。">
+<link rel="canonical" href="https://tossie85.site/tools/swimlane-gui-studio.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="tossie85 lab">
+<meta property="og:title" content="Swimlane GUI Studio">
+<meta property="og:description" content="スイムレーン図（業務フロー図）をGUIで組み立てられるツール。ブラウザ単体で動作し、外部サーバーへの通信は行いません。">
+<meta property="og:url" content="https://tossie85.site/tools/swimlane-gui-studio.html">
+<meta property="og:image" content="https://tossie85.site/assets/og-default.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Swimlane GUI Studio">
+<meta name="twitter:description" content="スイムレーン図（業務フロー図）をGUIで組み立てられるツール。ブラウザ単体で動作し、外部サーバーへの通信は行いません。">
+<meta name="twitter:image" content="https://tossie85.site/assets/og-default.png">
+<style>
+  :root{
+    --ink-900:#0A1830;
+    --ink-800:#10233F;
+    --ink-700:#16304F;
+    --ink-line:#2B4364;
+    --cyan:#4FD1E8;
+    --cyan-dim:#3AA8BC;
+    --amber:#F2B84B;
+    --paper:#F3F5F8;
+    --paper-line: rgba(79,209,232,0.14);
+    --text-ink:#16233A;
+    --text-soft:#5B6B84;
+    --danger:#E8637A;
+    --font-sans: "Segoe UI", "Yu Gothic UI", "Meiryo UI", "Hiragino Kaku Gothic ProN", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    --font-display: "Segoe UI Semibold", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+    --font-mono: Consolas, "Cascadia Mono", "SF Mono", "Yu Gothic UI", "Courier New", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink-900);
+    color:var(--text-ink);
+    font-family:var(--font-sans);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  h1,h2,h3,.display{font-family:var(--font-display);}
+  ::selection{background:var(--cyan); color:var(--ink-900);}
+
+  /* ---------- TOP BAR ---------- */
+  header{
+    background:var(--ink-800);
+    border-bottom:1px solid var(--ink-line);
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-shrink:0;
+    flex-wrap:wrap;
+    position:relative;
+  }
+  .brand{display:flex; align-items:center; gap:10px; margin-right:6px;}
+  .brand-mark{
+    width:30px; height:30px; border-radius:7px;
+    background:linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+    position:relative;
+    flex-shrink:0;
+  }
+  .brand-mark::before, .brand-mark::after{
+    content:"";
+    position:absolute; background:var(--ink-900);
+  }
+  .brand-mark::before{ top:8px; left:5px; right:5px; height:2px; }
+  .brand-mark::after{ top:16px; left:5px; right:9px; height:2px; }
+  .brand-title{color:#fff; font-size:16px; font-weight:700; letter-spacing:0.2px;}
+  .brand-sub{color:var(--cyan); font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; font-weight:600;}
+
+  .field-group{display:flex; flex-direction:column; gap:3px;}
+  .field-group label{font-size:10px; color:#9AB0C9; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;}
+  select, .btn, input[type=text]{
+    font-family:var(--font-sans);
+    font-size:13px;
+  }
+  select{
+    background:var(--ink-700);
+    color:#fff;
+    border:1px solid var(--ink-line);
+    border-radius:6px;
+    padding:6px 10px;
+    outline:none;
+    cursor:pointer;
+  }
+  .header-controls{
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+    flex:1; min-width:0;
+  }
+  .header-toggle-bar{ display:none; }
+  .toolbar-spacer{flex:1;}
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--ink-700);
+    color:#EAF2FA;
+    border:1px solid var(--ink-line);
+    border-radius:6px;
+    padding:7px 12px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s, transform .05s;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--cyan); color:var(--cyan);}
+  .btn:active{transform:translateY(1px);}
+  .btn-accent{
+    background:var(--amber);
+    border-color:var(--amber);
+    color:var(--ink-900);
+    font-weight:600;
+  }
+  .btn-accent:hover{ color:var(--ink-900); border-color:#fff; }
+  .btn-ghost{ background:transparent; }
+  .btn-sm{ padding:5px 9px; font-size:12px; border-radius:5px;}
+  .btn-danger{ color:var(--danger); }
+  .btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
+
+  /* ---------- MAIN LAYOUT ---------- */
+  .main{ flex:1; display:flex; min-height:0; }
+  .panel-builder{
+    width:360px;
+    flex-shrink:0;
+    background:var(--paper);
+    border-right:1px solid var(--ink-line);
+    overflow-y:auto;
+    padding:18px;
+  }
+  .panel-preview{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .panel-resizer{ display:none; }
+  .canvas-wrap{
+    flex:1;
+    overflow:auto;
+    position:relative;
+    background-color:#FBFCFE;
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size:26px 26px;
+    padding:30px;
+  }
+  .canvas-corner{
+    position:absolute; width:14px; height:14px;
+    border-color:var(--cyan-dim); opacity:.55;
+  }
+  .canvas-corner.tl{top:10px; left:10px; border-top:2px solid; border-left:2px solid;}
+  .canvas-corner.tr{top:10px; right:10px; border-top:2px solid; border-right:2px solid;}
+  .canvas-corner.bl{bottom:10px; left:10px; border-bottom:2px solid; border-left:2px solid;}
+  .canvas-corner.br{bottom:10px; right:10px; border-bottom:2px solid; border-right:2px solid;}
+
+  #preview{ display:flex; align-items:flex-start; justify-content:center; min-height:100%; }
+  #preview svg{ max-width:100%; height:auto; }
+  .preview-placeholder{ margin:auto; text-align:center; color:var(--text-soft); font-size:13.5px; max-width:320px; }
+  .preview-error{
+    margin:20px auto; max-width:520px;
+    background:#FFF1F3; border:1px solid var(--danger); color:#9B2C43;
+    padding:12px 14px; border-radius:8px; font-size:12.5px; white-space:pre-wrap;
+    font-family:var(--font-mono);
+  }
+
+  /* プレビュー上のクリックできる要素 */
+  #preview [data-pick]{ cursor:pointer; }
+  #preview path[data-pick]{ pointer-events:stroke; }
+  #preview .sl-hit{ cursor:pointer; pointer-events:stroke; }
+  #preview [data-pick].sl-selected > .sl-shape{ stroke-width:3.5; }
+  #preview path[data-pick].sl-selected{ stroke-width:3.5; }
+
+  /* ---------- CODE DRAWER ---------- */
+  .code-drawer{
+    flex-shrink:0;
+    background:var(--ink-900);
+    border-top:1px solid var(--ink-line);
+    display:flex;
+    flex-direction:column;
+    height:230px;
+    transition:height .18s ease;
+  }
+  .code-drawer.collapsed{ height:38px; }
+  .code-drawer-bar{
+    display:flex; align-items:center; gap:10px;
+    padding:7px 14px;
+    flex-shrink:0;
+    border-bottom:1px solid var(--ink-line);
+  }
+  .code-drawer-bar .title{color:#EAF2FA; font-size:12.5px; font-weight:600; letter-spacing:.3px;}
+  .toggle-edit{
+    display:flex; align-items:center; gap:6px;
+    color:#9AB0C9; font-size:11.5px; cursor:pointer; user-select:none;
+  }
+  .toggle-edit input{ accent-color:var(--cyan); }
+  #codeArea{
+    flex:1; width:100%; resize:none; border:none; outline:none;
+    background:var(--ink-900); color:#D7E8F5;
+    font-family:var(--font-mono); font-size:12.5px; line-height:1.6; padding:12px 16px;
+  }
+  #codeArea[readonly]{ color:#8FA6C2; }
+  #codeArea::selection{ background:#264866; }
+
+  /* ---------- BUILDER PANEL ---------- */
+  .panel-builder h2{ font-size:14px; margin:0 0 2px; color:var(--ink-800); }
+  .panel-builder .hint{ font-size:11.5px; color:var(--text-soft); margin:0 0 16px; line-height:1.6; }
+  .card{
+    background:#fff; border:1px dashed #B9C7DA; border-radius:9px;
+    padding:12px 13px; margin-bottom:14px;
+  }
+  .card-title{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;
+    color:var(--cyan-dim); margin-bottom:10px; display:flex; align-items:center; gap:6px;
+  }
+  .card-title::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--amber); }
+  .row{ display:flex; gap:8px; margin-bottom:8px; }
+  .row > *{ flex:1; min-width:0; }
+  .field label{
+    display:block; font-size:10px; color:var(--text-soft); margin-bottom:3px;
+    text-transform:uppercase; letter-spacing:.5px; font-weight:600;
+  }
+  .field input[type=text], .field select{
+    width:100%; padding:6px 8px;
+    border:1px solid #CBD6E4; border-radius:5px;
+    background:#FAFBFD; color:var(--text-ink); font-size:12.5px;
+  }
+  .field input[type=text]:focus, .field select:focus{ outline:2px solid var(--cyan); outline-offset:0; border-color:var(--cyan); }
+  .field input[type=color]{
+    width:100%; height:30px; padding:2px;
+    border:1px solid #CBD6E4; border-radius:5px; background:#FAFBFD; cursor:pointer;
+  }
+  .color-presets{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+  .color-swatch{
+    width:18px; height:18px; border-radius:4px; border:1px solid #CBD6E4;
+    padding:0; cursor:pointer; flex-shrink:0;
+  }
+  .color-swatch:hover{ border-color:var(--cyan); transform:scale(1.12); }
+  .add-row-btn{
+    width:100%; margin-top:2px;
+    background:var(--ink-800); color:#fff; border:none; border-radius:6px;
+    padding:8px; font-size:12.5px; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .add-row-btn:hover{ background:var(--ink-700); }
+
+  .item-list{ margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+  .item-row{
+    display:flex; align-items:center; gap:8px;
+    background:#FAFBFD; border:1px solid #E1E8F0; border-radius:6px;
+    padding:6px 8px; font-size:12px;
+  }
+  .item-row .item-text{
+    flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-family:var(--font-mono); font-size:11.5px; color:var(--ink-800);
+  }
+  .item-row button{
+    background:none; border:none; color:var(--danger); cursor:pointer; font-size:15px;
+    line-height:1; padding:2px 5px; border-radius:4px;
+  }
+  .item-row button:hover{ background:#FFE7EB; }
+  .item-row button.edit-btn{ color:var(--cyan-dim); font-size:13px; }
+  .item-row button.edit-btn:hover{ background:#E3F6FA; }
+  .item-row.dragging{ opacity:0.4; }
+  .item-row.drag-over{ box-shadow: inset 0 2px 0 var(--cyan-dim); }
+  .item-row.drop-rejected{ animation: dropReject 0.6s ease-out; }
+  @keyframes dropReject{
+    0%, 60%{ background:#FDE7EA; box-shadow: inset 0 0 0 2px var(--danger); }
+    100%{ background:transparent; box-shadow:none; }
+  }
+  .item-row .drag-handle{ cursor:grab; color:var(--text-soft); font-size:13px; line-height:1; user-select:none; flex:none; }
+  .item-row .drag-handle:active{ cursor:grabbing; }
+  .item-row.picked{ background:#FFF6DF; box-shadow: inset 0 0 0 2px var(--amber); }
+  .key-badge{
+    display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.3px;
+    padding:1px 5px; border-radius:3px; margin-right:4px; flex-shrink:0;
+    background:#D9E8FB; color:#1D4E89;
+  }
+  .empty-note{ font-size:11.5px; color:#A9B6C6; text-align:center; padding:8px 0; }
+
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb{ background:#C7D2DF; border-radius:6px; }
+  .panel-builder::-webkit-scrollbar-thumb{ background:#CBD6E4; }
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(10,24,48,0.55);
+    z-index:1000; align-items:center; justify-content:center;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{
+    background:#fff; border-radius:10px; width:min(560px, 90vw);
+    max-height:80vh; display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,0.35);
+  }
+  .modal-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid #E1E8F0;
+    font-weight:700; font-size:14px; color:var(--ink-800); flex-shrink:0;
+  }
+  .modal-close{
+    background:none; border:none; font-size:18px; cursor:pointer; color:var(--text-soft);
+    padding:2px 8px; border-radius:5px;
+  }
+  .modal-close:hover{ background:#F0F3F7; color:var(--ink-800); }
+  .modal-body{ padding:16px 18px; overflow-y:auto; font-size:12.5px; color:var(--text-ink); line-height:1.7; }
+  .modal-body h3{ font-size:12.5px; color:var(--ink-800); margin:16px 0 6px; }
+  .modal-body h3:first-child{ margin-top:0; }
+  .credit-item{ background:#F7F9FB; border:1px solid #E1E8F0; border-radius:8px; padding:10px 12px; }
+  .credit-name{ font-weight:700; color:var(--ink-800); font-size:12.5px; }
+  .credit-detail{ margin-top:4px; font-size:11.5px; color:var(--text-soft); }
+  .modal-body pre{
+    background:#F7F9FB; border:1px solid #E1E8F0; border-radius:6px; padding:10px;
+    font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; color:var(--text-ink);
+  }
+  .modal-body code{
+    background:#F0F3F7; border:1px solid #E1E8F0; border-radius:4px; padding:1px 5px;
+    font-family:var(--font-mono); font-size:11px;
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width:1100px){
+    .panel-builder{ width:min(320px, 34vw); padding:16px; }
+    header{ padding:8px 14px; gap:12px; }
+    .btn{ padding:6px 9px; }
+  }
+  @media (max-width:760px){
+    body{ overflow:auto; }
+    .main{ flex-direction:column; min-height:0; }
+    .panel-builder{ width:100%; max-height:42vh; border-right:none; border-bottom:none; flex-shrink:0; }
+    .panel-preview{ min-height:320px; }
+    .code-drawer{ height:180px; }
+    #preview svg{ max-height:32vh; width:auto; }
+    .panel-resizer{
+      display:flex; align-items:center; justify-content:center;
+      height:16px; flex-shrink:0;
+      background:var(--paper);
+      border-top:1px solid var(--ink-line); border-bottom:1px solid var(--ink-line);
+      cursor:row-resize; touch-action:none;
+    }
+    .panel-resizer::before{ content:""; width:36px; height:4px; border-radius:2px; background:#CBD6E4; }
+    .panel-resizer:hover::before, .panel-resizer.dragging::before{ background:var(--cyan-dim); }
+    .header-controls{ flex-basis:100%; order:2; }
+    .header-controls.collapsed{ display:none; }
+    .header-toggle-bar{
+      display:block;
+      position:absolute; left:50%; bottom:-11px; transform:translateX(-50%);
+      width:34px; z-index:5;
+      background:var(--cyan-dim); color:#EAF2FA;
+      border:1px solid var(--cyan); border-radius:8px;
+      padding:2px 0; font-size:13px; line-height:1.3; text-align:center; cursor:pointer;
+      box-shadow:0 1px 4px rgba(10,24,48,0.35);
+    }
+    .header-toggle-bar:hover{ filter:brightness(1.15); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark"></div>
+    <div>
+      <div class="brand-title">Swimlane GUI Studio</div>
+      <div class="brand-sub">Process Flow Builder</div>
+    </div>
+  </div>
+
+  <div class="header-controls" id="headerControls">
+    <button class="btn btn-sm" id="btnLoadSample">📋 サンプルを読み込む</button>
+    <button class="btn btn-sm btn-danger" id="btnClear">🗑️ クリア</button>
+
+    <div class="toolbar-spacer"></div>
+
+    <input type="file" id="fileInput" accept=".swim,.txt,.md,.markdown" style="display:none;">
+    <button class="btn btn-sm" id="btnOpenFile">📂 ファイルを開く</button>
+    <button class="btn btn-sm" id="btnCopyCode">コードをコピー</button>
+    <button class="btn btn-sm btn-accent" id="btnDownloadSwim">.swim 保存</button>
+    <button class="btn btn-sm" id="btnDownloadSvg">.svg 保存</button>
+    <button class="btn btn-sm" id="btnDownloadHtml">.html 保存</button>
+    <button class="btn btn-sm btn-ghost" id="btnHelp" title="記法・保存機能の説明">❓</button>
+    <button class="btn btn-sm btn-ghost" id="btnCredits" title="このツールについて">ℹ️</button>
+  </div>
+
+  <button class="header-toggle-bar" id="btnToggleHeader" aria-expanded="true" aria-controls="headerControls" aria-label="ツールバーの表示切り替え">△</button>
+</header>
+
+<div class="modal-overlay" id="helpOverlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>記法と保存機能について</span>
+      <button class="modal-close" id="btnCloseHelp">×</button>
+    </div>
+    <div class="modal-body">
+      <h3>この図について</h3>
+      <p style="margin-top:0;">スイムレーン図は Mermaid に相当する記法が無いため、このツール専用の記法（.swim）で表現しています。図はブラウザ内で直接SVGとして描画しており、外部ライブラリは使いません。</p>
+
+      <h3>記法（.swim）</h3>
+      <pre>swimlane
+title "受注フロー"
+direction LR
+
+lane sales "営業部" #FFF9C4
+phase p1 "受付"
+
+node n1 "申込を受ける" lane=sales phase=p1 shape=start
+node n2 "内容を確認"   lane=sales phase=p1
+
+n1 -&gt; n2 "確認依頼"</pre>
+      <p><code>lane=</code> や <code>phase=</code> のような名前付き属性にしているため、後から項目を増やしても古いファイルをそのまま読み込めます。<code>direction</code> は <code>LR</code>（左から右）と <code>TB</code>（上から下）が指定でき、<code>TD</code> は <code>TB</code> と同じ扱いです。</p>
+
+      <h3>開始・終了の「●」</h3>
+      <p>接続の from に <code>[*]</code> を選ぶと開始（●）、to に選ぶと終了（◉）が、相手と同じレーンに作られます。フェーズがある場合は1つ手前／1つ先の列に置かれ、そのあとは普通の図形として位置や所属を変更できます。図形の「形」から直接追加することもできます。</p>
+
+      <h3>保存（エクスポート）</h3>
+      <div class="credit-item">
+        <div class="credit-name">.swim 保存</div>
+        <div class="credit-detail">レーン・図形・色・接続をすべて含んだ、このツールの保存形式です。「ファイルを開く」で読み込めば続きから編集できます。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">.svg 保存</div>
+        <div class="credit-detail">表示中の図を画像（SVG）として保存します。資料やスライドへの貼り付け用です。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">.html 保存</div>
+        <div class="credit-detail">ブラウザでそのまま開ける単独HTMLとして保存します。図はSVGで埋め込まれるため、外部通信なしで表示できます。</div>
+      </div>
+
+      <h3>操作</h3>
+      <p>一覧の <code>⠿</code> をドラッグすると並べ替えできます。プレビュー上の図形や矢印をクリックすると、対応する項目が編集状態になります。図形以外の場所をクリックすると編集を解除します。</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="creditsOverlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>このツールについて</span>
+      <button class="modal-close" id="btnCloseCredits">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-top:0;">スイムレーン図（業務フロー図）をGUIで組み立てるツールです。入力内容はブラウザの外に送信されません。</p>
+      <h3>使用ライブラリ</h3>
+      <div class="credit-item">
+        <div class="credit-name">なし</div>
+        <div class="credit-detail">描画はすべてこのファイル内のコードでSVGを生成しています。外部ライブラリ・外部通信ともにありません。</div>
+      </div>
+      <h3>関連ツール</h3>
+      <div class="credit-item">
+        <div class="credit-name">Mermaid GUI Studio</div>
+        <div class="credit-detail">フローチャートやシーケンス図など、Mermaidが対応する図種はこちらで作成できます。操作性はこのツールと共通です。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <aside class="panel-builder" id="builderPanel"></aside>
+  <div class="panel-resizer" id="panelResizer"></div>
+  <section class="panel-preview">
+    <div class="canvas-wrap">
+      <span class="canvas-corner tl"></span><span class="canvas-corner tr"></span>
+      <span class="canvas-corner bl"></span><span class="canvas-corner br"></span>
+      <div id="preview"><div class="preview-placeholder">ここにプレビューが表示されます</div></div>
+    </div>
+    <div class="code-drawer" id="codeDrawer">
+      <div class="code-drawer-bar">
+        <span class="title">スイムレーン コード (.swim)</span>
+        <label class="toggle-edit"><input type="checkbox" id="editToggle"> コードを直接編集する</label>
+        <div class="toolbar-spacer"></div>
+        <button class="btn btn-sm btn-ghost" id="btnToggleDrawer">折りたたむ ▾</button>
+      </div>
+      <textarea id="codeArea" readonly spellcheck="false"></textarea>
+    </div>
+  </section>
+</div>
+
+<script>
+/* =========================================================================
+   Swimlane GUI Studio
+   - 状態(state) → コード(.swim) → レイアウト → SVG描画 の一方向で処理する。
+   - レイアウト計算(computeLayout)と描画(drawSvg)を分けてあるので、
+     将来「キャンバス自由配置」を足すときは computeLayout を差し替えるだけでよい。
+   ========================================================================= */
+
+/* ============ 状態管理 ============ */
+function emptyState(){
+  return {
+    title: '',
+    direction: 'LR',
+    lanes: [],       // { id, label, color }
+    phases: [],      // { id, label }
+    nodes: [],       // { id, label, laneId, phaseId, shape, color }
+    links: [],       // { from, to, label, style }
+    editLaneIdx: null, editPhaseIdx: null, editNodeIdx: null, editLinkIdx: null,
+  };
+}
+const state = emptyState();
+let manualMode = false;
+let counters = { lane:1, phase:1, node:1 };
+
+const SHAPES = [
+  { v:'process',  label:'処理（四角）' },
+  { v:'start',    label:'開始（角丸）' },
+  { v:'end',      label:'終了（角丸）' },
+  { v:'decision', label:'判断（ひし形）' },
+  { v:'io',       label:'入出力（平行四辺形）' },
+  { v:'startdot', label:'開始点（●）' },
+  { v:'enddot',   label:'終了点（◉）' },
+];
+/* 開始/終了の「●」。状態遷移図の [*] にあたるもので、他の図形より小さく描く */
+const DOT_SHAPES = ['startdot','enddot'];
+const DOT_SIZE = 26;
+const isDot = (shape)=> DOT_SHAPES.includes(shape);
+const STAR = '[*]';
+const LINK_STYLES = [
+  { v:'solid',  label:'実線' },
+  { v:'dashed', label:'破線' },
+];
+const LANE_COLORS = ['#E3F2FD','#FFF9C4','#C8E6C9','#F8BBD0','#D1C4E9','#FFE0B2','#B2EBF2','#DCEDC8'];
+const NODE_COLORS = ['','#FFFFFF','#FFF9C4','#C8E6C9','#FFCDD2','#BBDEFB','#E1BEE7','#FFE0B2'];
+
+/* ============ 汎用ヘルパー ============ */
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+/* IDは行指向のDSLで空白なしのトークンとして扱うため、記号類は _ に寄せる */
+function sanitizeId(raw, prefix){
+  let id = String(raw || '').replace(/[^A-Za-z0-9_一-龠ぁ-んァ-ヶー]/g,'_');
+  if(!id || /^[0-9]/.test(id)) id = (prefix || 'id') + (id || '');
+  return id;
+}
+function uniqueId(base, taken){
+  let id = base, n = 2;
+  while(taken.includes(id)){ id = base + '_' + n; n++; }
+  return id;
+}
+function allIds(){
+  return [...state.lanes, ...state.phases, ...state.nodes].map(x=>x.id);
+}
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function flashBtn(id, text){
+  const btn = document.getElementById(id);
+  const original = btn.textContent;
+  btn.textContent = text;
+  setTimeout(()=>{ btn.textContent = original; }, 1200);
+}
+
+/* 一覧の項目をドラッグ&ドロップで並べ替え可能にする汎用ヘルパー。
+   isValidOrder を渡すと、成立しない並びになる移動を差し戻す。 */
+function makeSortable(listEl, arr, onReorder, isValidOrder){
+  const rows = [...listEl.children].filter(el=>el.classList.contains('item-row'));
+  let dragIdx = null;
+  rows.forEach((row, idx)=>{
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'ドラッグして並べ替え';
+    row.insertBefore(handle, row.firstChild);
+    row.setAttribute('draggable', 'true');
+
+    row.addEventListener('dragstart', e=>{
+      dragIdx = idx;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(idx));
+    });
+    row.addEventListener('dragend', ()=>{
+      dragIdx = null;
+      rows.forEach(r=>r.classList.remove('dragging','drag-over'));
+    });
+    row.addEventListener('dragover', e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if(dragIdx!==null && idx!==dragIdx) row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', ()=> row.classList.remove('drag-over'));
+    row.addEventListener('drop', e=>{
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if(dragIdx===null || dragIdx===idx) return;
+      const before = arr.slice();
+      const targetItem = arr[idx];
+      const [moved] = arr.splice(dragIdx, 1);
+      let insertAt = arr.indexOf(targetItem);
+      if(dragIdx < idx) insertAt += 1;
+      arr.splice(insertAt, 0, moved);
+      if(isValidOrder && !isValidOrder(arr)){
+        arr.splice(0, arr.length, ...before);
+        row.classList.add('drop-rejected');
+        setTimeout(()=>row.classList.remove('drop-rejected'), 600);
+        return;
+      }
+      onReorder();
+    });
+  });
+}
+
+/* ============ コード生成（state → .swim） ============ */
+function quote(s){ return '"' + String(s == null ? '' : s).replace(/"/g,'”') + '"'; }
+
+function generateCode(){
+  const lines = ['swimlane'];
+  if(state.title) lines.push('title ' + quote(state.title));
+  lines.push('direction ' + state.direction);
+  if(state.lanes.length){
+    lines.push('');
+    state.lanes.forEach(l=> lines.push(`lane ${l.id} ${quote(l.label)}${l.color ? ' ' + l.color : ''}`));
+  }
+  if(state.phases.length){
+    lines.push('');
+    state.phases.forEach(p=> lines.push(`phase ${p.id} ${quote(p.label)}`));
+  }
+  if(state.nodes.length){
+    lines.push('');
+    state.nodes.forEach(n=>{
+      const attrs = [];
+      if(n.laneId)  attrs.push('lane=' + n.laneId);
+      if(n.phaseId) attrs.push('phase=' + n.phaseId);
+      if(n.shape && n.shape !== 'process') attrs.push('shape=' + n.shape);
+      if(n.color) attrs.push('color=' + n.color);
+      lines.push(`node ${n.id} ${quote(n.label)}${attrs.length ? ' ' + attrs.join(' ') : ''}`);
+    });
+  }
+  if(state.links.length){
+    lines.push('');
+    state.links.forEach(e=>{
+      const arrow = e.style === 'dashed' ? '-->' : '->';
+      lines.push(`${e.from} ${arrow} ${e.to}${e.label ? ' ' + quote(e.label) : ''}`);
+    });
+  }
+  if(!state.lanes.length && !state.nodes.length){
+    lines.push('');
+    lines.push('# 左のフォームからレーンと図形を追加してください');
+  }
+  return lines.join('\n');
+}
+
+/* ============ コード解析（.swim → state） ============ */
+/* 手書き・手直しされる前提なので、行単位で寛容に読む。
+   解釈できない行は無視し、致命的な矛盾のみエラーとして返す。 */
+function parseCode(text){
+  const next = emptyState();
+  const errors = [];
+  const lines = String(text || '').split('\n');
+
+  // "..." で囲まれたラベルを取り出しつつ、残りをトークンに分ける
+  const takeLabel = (rest) => {
+    const m = rest.match(/"([^"]*)"/);
+    return { label: m ? m[1] : '', rest: m ? (rest.slice(0, m.index) + ' ' + rest.slice(m.index + m[0].length)) : rest };
+  };
+
+  lines.forEach((raw, i)=>{
+    const line = raw.trim();
+    if(!line || line.startsWith('#') || line === 'swimlane') return;
+    const lineNo = i + 1;
+
+    if(/^title\b/.test(line)){ next.title = takeLabel(line).label; return; }
+    if(/^direction\b/.test(line)){
+      // フローチャートに合わせた表記。TD は TB の別名として受け付ける
+      const d = (line.split(/\s+/)[1] || '').toUpperCase();
+      next.direction = (d === 'TB' || d === 'TD') ? 'TB' : 'LR';
+      return;
+    }
+    if(/^lane\b/.test(line)){
+      const { label, rest } = takeLabel(line);
+      const tok = rest.split(/\s+/).filter(Boolean);
+      const id = tok[1];
+      if(!id){ errors.push(`${lineNo}行目: lane のIDがありません`); return; }
+      const color = (rest.match(/#[0-9A-Fa-f]{3,8}/) || [])[0] || '';
+      next.lanes.push({ id, label: label || id, color });
+      return;
+    }
+    if(/^phase\b/.test(line)){
+      const { label, rest } = takeLabel(line);
+      const id = rest.split(/\s+/).filter(Boolean)[1];
+      if(!id){ errors.push(`${lineNo}行目: phase のIDがありません`); return; }
+      next.phases.push({ id, label: label || id });
+      return;
+    }
+    if(/^node\b/.test(line)){
+      const { label, rest } = takeLabel(line);
+      const tok = rest.split(/\s+/).filter(Boolean);
+      const id = tok[1];
+      if(!id){ errors.push(`${lineNo}行目: node のIDがありません`); return; }
+      const attr = {};
+      tok.slice(2).forEach(t=>{
+        const eq = t.indexOf('=');
+        if(eq > 0) attr[t.slice(0, eq)] = t.slice(eq + 1);
+      });
+      const shape = attr.shape || 'process';
+      next.nodes.push({
+        id, label: isDot(shape) ? label : (label || id),
+        laneId: attr.lane || '', phaseId: attr.phase || '',
+        shape, color: attr.color || '',
+      });
+      return;
+    }
+    // 接続: A -> B "ラベル" / A --> B
+    const link = line.match(/^(\S+)\s*(-->|->)\s*(\S+)(.*)$/);
+    if(link){
+      next.links.push({
+        from: link[1], to: link[3],
+        label: takeLabel(link[4] || '').label,
+        style: link[2] === '-->' ? 'dashed' : 'solid',
+      });
+      return;
+    }
+    errors.push(`${lineNo}行目: 解釈できない行です → ${line}`);
+  });
+
+  // 参照の整合性チェック
+  const laneIds = next.lanes.map(l=>l.id);
+  const phaseIds = next.phases.map(p=>p.id);
+  const nodeIds = next.nodes.map(n=>n.id);
+  next.nodes.forEach(n=>{
+    if(n.laneId && !laneIds.includes(n.laneId)) errors.push(`node ${n.id}: レーン ${n.laneId} が見つかりません`);
+    if(n.phaseId && !phaseIds.includes(n.phaseId)) errors.push(`node ${n.id}: フェーズ ${n.phaseId} が見つかりません`);
+  });
+  next.links.forEach(e=>{
+    if(!nodeIds.includes(e.from)) errors.push(`接続 ${e.from} → ${e.to}: ${e.from} が見つかりません`);
+    if(!nodeIds.includes(e.to)) errors.push(`接続 ${e.from} → ${e.to}: ${e.to} が見つかりません`);
+  });
+  return { state: next, errors };
+}
+
+/* ============ レイアウト計算 ============
+   グリッド自動配置。ここだけ差し替えれば自由配置へ移行できるよう、
+   出力は「図形ごとの矩形」と「レーン/フェーズの帯」に限定する。 */
+const LAYOUT = {
+  laneHeaderW: 132,   // レーン名の帯（LR時は左、TB時は上）
+  phaseHeaderH: 38,   // フェーズ名の帯
+  nodeW: 168, nodeH: 58,
+  gapMain: 34,        // フェーズとフェーズの間隔
+  gapInner: 22,       // 同じフェーズ内で流れ方向に並べるときの間隔
+  gapCross: 18,       // レーンを横切る向き（折り返したとき）の間隔
+  maxPerRun: 3,       // 流れ方向に並べる上限。これを超えたら折り返して縦横を混在させる
+};
+
+/* 1つのセル(レーン×フェーズ)に k 個あるとき、流れ方向に何個並べるかを決める。
+   基本は流れ方向に並べ、多すぎる場合だけ折り返して段数を増やす。 */
+function runLength(k){
+  if(k <= 1) return 1;
+  const runs = Math.ceil(k / LAYOUT.maxPerRun);   // 必要な段数
+  return Math.ceil(k / runs);                     // 段数をそろえて均等に割る
+}
+
+function computeLayout(){
+  const L = LAYOUT;
+  const dir = state.direction;
+  const lanes = state.lanes;
+  // フェーズ未定義でもノードだけで描けるよう、暗黙の1フェーズを用意する
+  const phases = state.phases.length ? state.phases : [{ id:'__all', label:'' }];
+  const hasPhaseHeader = state.phases.length > 0;
+
+  // セル(レーン×フェーズ)ごとにノードを詰める
+  const cell = new Map();
+  const key = (l,p)=> l + '\u001f' + p;
+  const orphans = [];
+  state.nodes.forEach(n=>{
+    const laneId = n.laneId || (lanes[0] && lanes[0].id);
+    const phaseId = state.phases.length ? n.phaseId || phases[0].id : '__all';
+    if(!laneId){ orphans.push(n); return; }
+    const k = key(laneId, phaseId);
+    if(!cell.has(k)) cell.set(k, []);
+    cell.get(k).push(n);
+  });
+
+  // 図形1つ分の大きさ。流れ方向(main)とレーンを横切る方向(cross)で読み替える
+  const nodeMain  = dir === 'LR' ? L.nodeW : L.nodeH;
+  const nodeCross = dir === 'LR' ? L.nodeH : L.nodeW;
+
+  // セルごとに「流れ方向に何個並べ、何段になるか」を先に求める
+  const shape = new Map();
+  lanes.forEach(l=> phases.forEach(p=>{
+    const k = (cell.get(key(l.id, p.id)) || []).length;
+    const run = runLength(k);
+    shape.set(key(l.id, p.id), { run, runs: k ? Math.ceil(k / run) : 0 });
+  }));
+
+  // フェーズの幅 = そのフェーズでいちばん多く流れ方向に並ぶ数（レーンをまたいで揃える）
+  const phaseRuns = phases.map(p=>{
+    let max = 1;
+    lanes.forEach(l=> max = Math.max(max, shape.get(key(l.id, p.id)).run));
+    return max;
+  });
+  // レーンの厚み = そのレーンでいちばん段数が多いセル
+  const laneRuns = lanes.map(l=>{
+    let max = 1;
+    phases.forEach(p=> max = Math.max(max, shape.get(key(l.id, p.id)).runs));
+    return max;
+  });
+
+  const mainStart = dir === 'LR' ? L.laneHeaderW : L.phaseHeaderH;
+  const crossStart = dir === 'LR'
+    ? (hasPhaseHeader ? L.phaseHeaderH : 0)
+    : (hasPhaseHeader ? L.laneHeaderW : 0);
+
+  const phaseBands = [];
+  let main = mainStart;
+  phases.forEach((p, j)=>{
+    const size = phaseRuns[j] * nodeMain + (phaseRuns[j] - 1) * L.gapInner;
+    phaseBands.push({ phase:p, index:j, start:main, size });
+    main += size + L.gapMain;
+  });
+  const mainTotal = main - L.gapMain + L.gapMain / 2;
+
+  const laneBands = [];
+  let cross = crossStart;
+  lanes.forEach((l, i)=>{
+    const size = laneRuns[i] * nodeCross + (laneRuns[i] + 1) * L.gapCross;
+    laneBands.push({ lane:l, index:i, start:cross, size });
+    cross += size;
+  });
+  const crossTotal = cross;
+
+  // 図形の矩形を決める
+  const boxes = [];
+  lanes.forEach((l, i)=>{
+    const band = laneBands[i];
+    phases.forEach((p, j)=>{
+      const list = cell.get(key(l.id, p.id)) || [];
+      const { run } = shape.get(key(l.id, p.id));
+      list.forEach((n, t)=>{
+        const col = t % run;              // 流れ方向の位置
+        const row = Math.floor(t / run);  // 折り返した段
+        const mainPos  = phaseBands[j].start + col * (nodeMain + L.gapInner);
+        const crossPos = band.start + L.gapCross + row * (nodeCross + L.gapCross);
+        const slot = dir === 'LR'
+          ? { x: mainPos, y: crossPos, w: L.nodeW, h: L.nodeH }
+          : { x: crossPos, y: mainPos, w: L.nodeW, h: L.nodeH };
+        // ●は枠を小さくする。矢印は矩形の縁から引くので、ここを縮めないと線が離れて見える
+        const box = isDot(n.shape)
+          ? { x: slot.x + (slot.w - DOT_SIZE)/2, y: slot.y + (slot.h - DOT_SIZE)/2, w: DOT_SIZE, h: DOT_SIZE }
+          : slot;
+        boxes.push({ node:n, index: state.nodes.indexOf(n), ...box });
+      });
+    });
+  });
+
+  const width  = dir === 'LR' ? mainTotal : crossTotal;
+  const height = dir === 'LR' ? crossTotal : mainTotal;
+
+  return {
+    dir, lanes, phases, hasPhaseHeader,
+    laneBands, phaseBands, boxes, orphans,
+    width: Math.max(width, 320),
+    height: Math.max(height, 160),
+    boxById: new Map(boxes.map(b=>[b.node.id, b])),
+  };
+}
+
+/* ============ SVG描画 ============ */
+function shapeElement(b, shape, fill){
+  const { x, y, w, h } = b;
+  const st = ` fill="${esc(fill)}" stroke="#42506B" stroke-width="1.6"`;
+  if(shape === 'startdot' || shape === 'enddot'){
+    const cx = x + w/2, cy = y + h/2;
+    const outer = `<circle class="sl-shape" cx="${cx}" cy="${cy}" r="${w/2}" fill="#42506B" stroke="#42506B" stroke-width="1.6"></circle>`;
+    // 終了は状態遷移図と同じく二重丸で表す
+    return shape === 'enddot'
+      ? outer + `<circle cx="${cx}" cy="${cy}" r="${w/2 - 4}" fill="#FFFFFF"></circle><circle cx="${cx}" cy="${cy}" r="${w/2 - 7}" fill="#42506B"></circle>`
+      : outer;
+  }
+  if(shape === 'decision'){
+    return `<polygon class="sl-shape" points="${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}"${st}></polygon>`;
+  }
+  if(shape === 'io'){
+    const s = 16;
+    return `<polygon class="sl-shape" points="${x+s},${y} ${x+w},${y} ${x+w-s},${y+h} ${x},${y+h}"${st}></polygon>`;
+  }
+  const r = (shape === 'start' || shape === 'end') ? h/2 : 7;
+  return `<rect class="sl-shape" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}"${st}></rect>`;
+}
+
+/* 折れ線で結ぶ。前後関係（流れ方向）に応じて経路を変える。 */
+function linkPath(a, b, dir){
+  const ac = { x:a.x + a.w/2, y:a.y + a.h/2 };
+  const bc = { x:b.x + b.w/2, y:b.y + b.h/2 };
+  if(dir === 'LR'){
+    if(b.x > a.x + a.w - 1){                    // 前進
+      const sx = a.x + a.w, ex = b.x;
+      const mx = (sx + ex) / 2;
+      return { d:`M ${sx} ${ac.y} H ${mx} V ${bc.y} H ${ex}`, tip:{ x:ex, y:bc.y, dirn:'right' },
+               mid:{ x:mx, y:(ac.y + bc.y)/2 } };
+    }
+    if(Math.abs(a.x - b.x) < 1){                // 同じフェーズ（レーン間）
+      const down = bc.y > ac.y;
+      const sy = down ? a.y + a.h : a.y, ey = down ? b.y : b.y + b.h;
+      return { d:`M ${ac.x} ${sy} V ${ey}`, tip:{ x:ac.x, y:ey, dirn: down ? 'down' : 'up' },
+               mid:{ x:ac.x, y:(sy + ey)/2 } };
+    }
+    // 後退（差戻しなど）は下側を回り込む
+    const back = Math.max(a.y + a.h, b.y + b.h) + 22;
+    return { d:`M ${ac.x} ${a.y + a.h} V ${back} H ${bc.x} V ${b.y + b.h}`,
+             tip:{ x:bc.x, y:b.y + b.h, dirn:'up' }, mid:{ x:(ac.x + bc.x)/2, y:back } };
+  }
+  // TB: 流れは上→下、レーンは左右
+  if(b.y > a.y + a.h - 1){
+    const sy = a.y + a.h, ey = b.y;
+    const my = (sy + ey) / 2;
+    return { d:`M ${ac.x} ${sy} V ${my} H ${bc.x} V ${ey}`, tip:{ x:bc.x, y:ey, dirn:'down' },
+             mid:{ x:(ac.x + bc.x)/2, y:my } };
+  }
+  if(Math.abs(a.y - b.y) < 1){
+    const right = bc.x > ac.x;
+    const sx = right ? a.x + a.w : a.x, ex = right ? b.x : b.x + b.w;
+    return { d:`M ${sx} ${ac.y} H ${ex}`, tip:{ x:ex, y:ac.y, dirn: right ? 'right' : 'left' },
+             mid:{ x:(sx + ex)/2, y:ac.y } };
+  }
+  const back = Math.max(a.x + a.w, b.x + b.w) + 22;
+  return { d:`M ${a.x + a.w} ${ac.y} H ${back} V ${bc.y} H ${b.x + b.w}`,
+           tip:{ x:b.x + b.w, y:bc.y, dirn:'left' }, mid:{ x:back, y:(ac.y + bc.y)/2 } };
+}
+
+function arrowHead(tip){
+  const s = 7;
+  const { x, y, dirn } = tip;
+  const pts = {
+    right: `${x},${y} ${x-s},${y-s*0.62} ${x-s},${y+s*0.62}`,
+    left:  `${x},${y} ${x+s},${y-s*0.62} ${x+s},${y+s*0.62}`,
+    down:  `${x},${y} ${x-s*0.62},${y-s} ${x+s*0.62},${y-s}`,
+    up:    `${x},${y} ${x-s*0.62},${y+s} ${x+s*0.62},${y+s}`,
+  }[dirn];
+  return `<polygon class="sl-arrow" points="${pts}" fill="#42506B"></polygon>`;
+}
+
+/* 図形内のラベルを折り返して <tspan> にする（SVGは自動折り返ししないため） */
+function wrapLabel(text, maxChars, maxLines){
+  const words = String(text || '').split(/(\s+)/).filter(w=>w.trim() !== '' || w === ' ');
+  const lines = [];
+  let cur = '';
+  const push = ()=>{ if(cur){ lines.push(cur); cur = ''; } };
+  const width = (s)=> [...s].reduce((n,ch)=> n + (/[\x00-\xff]/.test(ch) ? 1 : 2), 0);
+  for(const w of words){
+    if(width(cur + w) > maxChars && cur){ push(); }
+    if(width(w) > maxChars){
+      for(const ch of w){
+        if(width(cur + ch) > maxChars){ push(); }
+        cur += ch;
+      }
+    }else{
+      cur += w;
+    }
+    if(lines.length >= maxLines) break;
+  }
+  push();
+  if(lines.length > maxLines){
+    lines.length = maxLines;
+    lines[maxLines-1] = lines[maxLines-1].slice(0, Math.max(1, lines[maxLines-1].length - 1)) + '…';
+  }
+  return lines.length ? lines : [''];
+}
+
+function drawSvg(){
+  const lay = computeLayout();
+  const pad = 14;
+  const titleH = state.title ? 34 : 0;
+  const W = lay.width + pad*2;
+  const H = lay.height + pad*2 + titleH;
+  const out = [];
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Inter, 'Yu Gothic UI', 'Meiryo UI', sans-serif">`);
+  out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF"></rect>`);
+  if(state.title){
+    out.push(`<text x="${W/2}" y="24" text-anchor="middle" font-size="16" font-weight="700" fill="#16233A">${esc(state.title)}</text>`);
+  }
+  out.push(`<g transform="translate(${pad}, ${pad + titleH})">`);
+
+  // レーンの帯と見出し
+  lay.laneBands.forEach(band=>{
+    const l = band.lane;
+    const fill = l.color || '#F7F9FB';
+    if(lay.dir === 'LR'){
+      out.push(`<g data-pick="lane" data-idx="${state.lanes.indexOf(l)}">`);
+      out.push(`<rect class="sl-shape" x="0" y="${band.start}" width="${lay.width}" height="${band.size}" fill="${esc(fill)}" fill-opacity="0.55" stroke="#B9C7DA"></rect>`);
+      out.push(`<rect x="0" y="${band.start}" width="${LAYOUT.laneHeaderW}" height="${band.size}" fill="${esc(fill)}" stroke="#B9C7DA"></rect>`);
+      wrapLabel(l.label, 14, 3).forEach((ln, i, all)=>{
+        const y = band.start + band.size/2 + (i - (all.length-1)/2) * 15 + 5;
+        out.push(`<text x="${LAYOUT.laneHeaderW/2}" y="${y}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#16233A">${esc(ln)}</text>`);
+      });
+      out.push(`</g>`);
+    }else{
+      out.push(`<g data-pick="lane" data-idx="${state.lanes.indexOf(l)}">`);
+      out.push(`<rect class="sl-shape" x="${band.start}" y="0" width="${band.size}" height="${lay.height}" fill="${esc(fill)}" fill-opacity="0.55" stroke="#B9C7DA"></rect>`);
+      out.push(`<rect x="${band.start}" y="0" width="${band.size}" height="${LAYOUT.phaseHeaderH}" fill="${esc(fill)}" stroke="#B9C7DA"></rect>`);
+      out.push(`<text x="${band.start + band.size/2}" y="${LAYOUT.phaseHeaderH/2 + 5}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#16233A">${esc(l.label)}</text>`);
+      out.push(`</g>`);
+    }
+  });
+
+  // フェーズの見出し
+  if(lay.hasPhaseHeader){
+    lay.phaseBands.forEach(pb=>{
+      const idx = state.phases.indexOf(pb.phase);
+      if(lay.dir === 'LR'){
+        out.push(`<g data-pick="phase" data-idx="${idx}">`);
+        out.push(`<rect class="sl-shape" x="${pb.start}" y="0" width="${pb.size}" height="${LAYOUT.phaseHeaderH}" fill="#EEF4FB" stroke="#B9C7DA"></rect>`);
+        out.push(`<text x="${pb.start + pb.size/2}" y="${LAYOUT.phaseHeaderH/2 + 5}" text-anchor="middle" font-size="12" font-weight="700" fill="#3C516C">${esc(pb.phase.label)}</text>`);
+        out.push(`</g>`);
+      }else{
+        out.push(`<g data-pick="phase" data-idx="${idx}">`);
+        out.push(`<rect class="sl-shape" x="0" y="${pb.start}" width="${LAYOUT.laneHeaderW}" height="${pb.size}" fill="#EEF4FB" stroke="#B9C7DA"></rect>`);
+        out.push(`<text x="${LAYOUT.laneHeaderW/2}" y="${pb.start + pb.size/2 + 5}" text-anchor="middle" font-size="12" font-weight="700" fill="#3C516C">${esc(pb.phase.label)}</text>`);
+        out.push(`</g>`);
+      }
+    });
+  }
+
+  // 接続（図形より先に描いて背面へ）
+  state.links.forEach((e, i)=>{
+    const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
+    if(!a || !b) return;
+    const p = linkPath(a, b, lay.dir);
+    const dash = e.style === 'dashed' ? ' stroke-dasharray="6 4"' : '';
+    out.push(`<g>`);
+    out.push(`<path class="sl-hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="14" data-pick="link" data-idx="${i}"></path>`);
+    out.push(`<path d="${p.d}" fill="none" stroke="#42506B" stroke-width="1.6"${dash} data-pick="link" data-idx="${i}"></path>`);
+    out.push(arrowHead(p.tip));
+    if(e.label){
+      const tw = [...e.label].reduce((n,ch)=> n + (/[\x00-\xff]/.test(ch) ? 6 : 11), 0) + 10;
+      out.push(`<rect x="${p.mid.x - tw/2}" y="${p.mid.y - 9}" width="${tw}" height="18" rx="4" fill="#FFFFFF" stroke="#D3E1EF" data-pick="link" data-idx="${i}"></rect>`);
+      out.push(`<text x="${p.mid.x}" y="${p.mid.y + 4}" text-anchor="middle" font-size="11" fill="#3C516C" data-pick="link" data-idx="${i}">${esc(e.label)}</text>`);
+    }
+    out.push(`</g>`);
+  });
+
+  // 図形
+  lay.boxes.forEach(b=>{
+    const n = b.node;
+    const fill = n.color || '#FFFFFF';
+    out.push(`<g data-pick="node" data-idx="${b.index}">`);
+    out.push(shapeElement(b, n.shape, fill));
+    if(isDot(n.shape)){
+      // ●の中には文字を入れず、ラベルがあるときだけ真下に添える
+      if(n.label){
+        out.push(`<text x="${b.x + b.w/2}" y="${b.y + b.h + 13}" text-anchor="middle" font-size="11" fill="#3C516C">${esc(n.label)}</text>`);
+      }
+    }else{
+      const lines = wrapLabel(n.label, n.shape === 'decision' ? 12 : 16, 3);
+      lines.forEach((ln, i)=>{
+        const y = b.y + b.h/2 + (i - (lines.length-1)/2) * 15 + 5;
+        out.push(`<text x="${b.x + b.w/2}" y="${y}" text-anchor="middle" font-size="12" fill="#16233A">${esc(ln)}</text>`);
+      });
+    }
+    out.push(`</g>`);
+  });
+
+  out.push(`</g></svg>`);
+  return out.join('');
+}
+
+/* ============ プレビュー描画 ============ */
+function renderPreview(){
+  const target = document.getElementById('preview');
+  if(!state.lanes.length && !state.nodes.length){
+    target.innerHTML = '<div class="preview-placeholder">ここにプレビューが表示されます</div>';
+    return;
+  }
+  try{
+    target.innerHTML = drawSvg();
+  }catch(err){
+    target.innerHTML = `<div class="preview-error">描画エラー:\n${esc(err && err.message ? err.message : err)}</div>`;
+  }
+}
+function showParseErrors(errors){
+  const target = document.getElementById('preview');
+  target.innerHTML = `<div class="preview-error">コードの内容を確認してください:\n${esc(errors.join('\n'))}</div>`;
+}
+
+let renderTimer;
+function scheduleRender(){
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderPreview, 120);
+}
+function regenerateCode(){
+  if(manualMode) return;
+  document.getElementById('codeArea').value = generateCode();
+  scheduleRender();
+}
+
+/* ============ プレビュー → ビルダーの逆引き選択 ============ */
+/* 図形には data-pick / data-idx を持たせてあるので、Mermaid版のようなid解析は不要。 */
+const PICK_CONF = {
+  lane:  { listId:'slLaneList',  pick(i){ state.editLaneIdx = i;  fillLaneForm(state.lanes[i]); } },
+  phase: { listId:'slPhaseList', pick(i){ state.editPhaseIdx = i; fillPhaseForm(state.phases[i]); } },
+  node:  { listId:'slNodeList',  pick(i){ state.editNodeIdx = i;  fillNodeForm(state.nodes[i]); } },
+  link:  { listId:'slLinkList',  pick(i){ state.editLinkIdx = i;  fillLinkForm(state.links[i]); } },
+};
+
+function cancelEditing(){
+  resetLaneForm(); resetPhaseForm(); resetNodeForm(); resetLinkForm();
+  document.querySelectorAll('.item-row.picked').forEach(r=>r.classList.remove('picked'));
+  document.querySelectorAll('#preview .sl-selected').forEach(el=>el.classList.remove('sl-selected'));
+}
+
+function selectFromPreview(kind, idx){
+  const conf = PICK_CONF[kind];
+  if(!conf) return;
+  conf.pick(idx);
+  const listEl = document.getElementById(conf.listId);
+  const row = listEl ? [...listEl.querySelectorAll('.item-row')][idx] : null;
+  if(row){
+    row.classList.add('picked');
+    row.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  }
+  document.querySelectorAll(`#preview [data-pick="${kind}"][data-idx="${idx}"]`).forEach(el=>el.classList.add('sl-selected'));
+}
+
+document.getElementById('preview').addEventListener('click', ev=>{
+  cancelEditing();
+  const el = ev.target.closest('[data-pick]');
+  if(!el) return;
+  selectFromPreview(el.getAttribute('data-pick'), Number(el.getAttribute('data-idx')));
+});
+
+/* ============ ビルダーUI ============ */
+function colorPresets(targetId, list){
+  return `<div class="color-presets">` + list.map(c=>
+    c === ''
+      ? `<button type="button" class="color-swatch" data-target="${targetId}" data-color="" title="色なし" style="background:repeating-linear-gradient(45deg,#fff,#fff 4px,#E1E8F0 4px,#E1E8F0 8px)"></button>`
+      : `<button type="button" class="color-swatch" data-target="${targetId}" data-color="${c}" title="${c}" style="background:${c}"></button>`
+  ).join('') + `</div>`;
+}
+
+function renderBuilder(){
+  const panel = document.getElementById('builderPanel');
+  panel.innerHTML = `
+    <h2>スイムレーン ビルダー</h2>
+    <p class="hint">レーン（担当者・部署）とフェーズ（工程）を用意し、その交点に図形を置いていきます。図形どうしを接続すると矢印が引かれます。</p>
+
+    <div class="card">
+      <div class="card-title">方向</div>
+      <div class="field">
+        <select id="dirSelect">
+          <option value="LR">左から右 (LR)</option>
+          <option value="TB">上から下 (TB)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">図のタイトル</div>
+      <div class="field"><input type="text" id="slTitle" placeholder="例: 受注フロー"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">レーンを追加</div>
+      <div class="row">
+        <div class="field"><label>ID</label><input type="text" id="slLaneId" placeholder="例: sales"></div>
+        <div class="field"><label>表示名</label><input type="text" id="slLaneLabel" placeholder="例: 営業部"></div>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>帯の色</label>
+        <input type="color" id="slLaneColor" value="#E3F2FD">
+        ${colorPresets('slLaneColor', LANE_COLORS)}
+      </div>
+      <button class="add-row-btn" id="slAddLane">＋ レーンを追加</button>
+      <button class="add-row-btn" id="slLaneCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <div class="item-list" id="slLaneList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">フェーズ（工程）を追加</div>
+      <p class="hint" style="margin-bottom:10px;">流れの区切りです。未設定でも図形は左から順に並びます。</p>
+      <div class="row">
+        <div class="field"><label>ID</label><input type="text" id="slPhaseId" placeholder="例: p1"></div>
+        <div class="field"><label>表示名</label><input type="text" id="slPhaseLabel" placeholder="例: 受付"></div>
+      </div>
+      <button class="add-row-btn" id="slAddPhase">＋ フェーズを追加</button>
+      <button class="add-row-btn" id="slPhaseCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <div class="item-list" id="slPhaseList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">図形を追加</div>
+      <div class="row">
+        <div class="field"><label>ID</label><input type="text" id="slNodeId" placeholder="例: n1"></div>
+        <div class="field"><label>表示名</label><input type="text" id="slNodeLabel" placeholder="例: 申込を受ける"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>レーン</label><select id="slNodeLane"></select></div>
+        <div class="field"><label>フェーズ</label><select id="slNodePhase"></select></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>形</label>
+          <select id="slNodeShape">${SHAPES.map(s=>`<option value="${s.v}">${s.label}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>塗り色</label>
+        <input type="color" id="slNodeColor" value="#FFFFFF">
+        ${colorPresets('slNodeColor', NODE_COLORS)}
+      </div>
+      <button class="add-row-btn" id="slAddNode">＋ 図形を追加</button>
+      <button class="add-row-btn" id="slNodeCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <div class="item-list" id="slNodeList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">接続（矢印）を追加</div>
+      <div class="row">
+        <div class="field"><label>from</label><select id="slLinkFrom"></select></div>
+        <div class="field"><label>to</label><select id="slLinkTo"></select></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>線種</label>
+          <select id="slLinkStyle">${LINK_STYLES.map(s=>`<option value="${s.v}">${s.label}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>ラベル（任意）</label><input type="text" id="slLinkLabel" placeholder="例: 承認"></div>
+      </div>
+      <button class="add-row-btn" id="slAddLink">＋ 接続を追加</button>
+      <button class="add-row-btn" id="slLinkCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <div class="item-list" id="slLinkList"></div>
+    </div>
+  `;
+
+  panel.addEventListener('click', e=>{
+    const sw = e.target.closest('.color-swatch');
+    if(!sw) return;
+    const input = document.getElementById(sw.dataset.target);
+    if(sw.dataset.color){ input.value = sw.dataset.color; input.dataset.none = ''; }
+    else { input.dataset.none = '1'; }
+  });
+
+  document.getElementById('dirSelect').value = state.direction;
+  document.getElementById('dirSelect').addEventListener('change', e=>{
+    state.direction = e.target.value;
+    regenerateCode();
+    if(manualMode) renderPreview();
+  });
+
+  document.getElementById('slTitle').addEventListener('input', e=>{
+    state.title = e.target.value.trim();
+    regenerateCode();
+  });
+
+  document.getElementById('slAddLane').addEventListener('click', submitLane);
+  document.getElementById('slLaneCancel').addEventListener('click', ()=>{ resetLaneForm(); refreshLists(); });
+  document.getElementById('slAddPhase').addEventListener('click', submitPhase);
+  document.getElementById('slPhaseCancel').addEventListener('click', ()=>{ resetPhaseForm(); refreshLists(); });
+  document.getElementById('slAddNode').addEventListener('click', submitNode);
+  document.getElementById('slNodeCancel').addEventListener('click', ()=>{ resetNodeForm(); refreshLists(); });
+  document.getElementById('slAddLink').addEventListener('click', submitLink);
+  document.getElementById('slLinkCancel').addEventListener('click', ()=>{ resetLinkForm(); refreshLists(); });
+
+  refreshLists();
+}
+
+/* ---- レーン ---- */
+function colorOf(inputId){
+  const el = document.getElementById(inputId);
+  return el.dataset.none === '1' ? '' : el.value;
+}
+function submitLane(){
+  const rawId = document.getElementById('slLaneId').value.trim();
+  const label = document.getElementById('slLaneLabel').value.trim();
+  if(!rawId && !label){ return; }
+  const color = colorOf('slLaneColor');
+  if(state.editLaneIdx !== null){
+    const idx = state.editLaneIdx;
+    const oldId = state.lanes[idx].id;
+    const id = sanitizeId(rawId || oldId, 'lane');
+    if(id !== oldId) state.nodes.forEach(n=>{ if(n.laneId === oldId) n.laneId = id; });
+    state.lanes[idx] = { id, label: label || id, color };
+  }else{
+    const id = uniqueId(sanitizeId(rawId || ('lane' + counters.lane++), 'lane'), allIds());
+    state.lanes.push({ id, label: label || id, color });
+  }
+  resetLaneForm(); refreshLists(); regenerateCode();
+}
+function fillLaneForm(l){
+  document.getElementById('slLaneId').value = l.id;
+  document.getElementById('slLaneLabel').value = l.label;
+  const c = document.getElementById('slLaneColor');
+  c.value = l.color || '#E3F2FD'; c.dataset.none = l.color ? '' : '1';
+  document.getElementById('slAddLane').textContent = '✓ レーンを更新';
+  document.getElementById('slLaneCancel').style.display = 'flex';
+}
+function resetLaneForm(){
+  const idEl = document.getElementById('slLaneId');
+  if(!idEl) return;
+  idEl.value = ''; document.getElementById('slLaneLabel').value = '';
+  state.editLaneIdx = null;
+  document.getElementById('slAddLane').textContent = '＋ レーンを追加';
+  document.getElementById('slLaneCancel').style.display = 'none';
+}
+
+/* ---- フェーズ ---- */
+function submitPhase(){
+  const rawId = document.getElementById('slPhaseId').value.trim();
+  const label = document.getElementById('slPhaseLabel').value.trim();
+  if(!rawId && !label) return;
+  if(state.editPhaseIdx !== null){
+    const idx = state.editPhaseIdx;
+    const oldId = state.phases[idx].id;
+    const id = sanitizeId(rawId || oldId, 'phase');
+    if(id !== oldId) state.nodes.forEach(n=>{ if(n.phaseId === oldId) n.phaseId = id; });
+    state.phases[idx] = { id, label: label || id };
+  }else{
+    const id = uniqueId(sanitizeId(rawId || ('p' + counters.phase++), 'phase'), allIds());
+    state.phases.push({ id, label: label || id });
+  }
+  resetPhaseForm(); refreshLists(); regenerateCode();
+}
+function fillPhaseForm(p){
+  document.getElementById('slPhaseId').value = p.id;
+  document.getElementById('slPhaseLabel').value = p.label;
+  document.getElementById('slAddPhase').textContent = '✓ フェーズを更新';
+  document.getElementById('slPhaseCancel').style.display = 'flex';
+}
+function resetPhaseForm(){
+  const el = document.getElementById('slPhaseId');
+  if(!el) return;
+  el.value = ''; document.getElementById('slPhaseLabel').value = '';
+  state.editPhaseIdx = null;
+  document.getElementById('slAddPhase').textContent = '＋ フェーズを追加';
+  document.getElementById('slPhaseCancel').style.display = 'none';
+}
+
+/* ---- 図形 ---- */
+function submitNode(){
+  const rawId = document.getElementById('slNodeId').value.trim();
+  const label = document.getElementById('slNodeLabel').value.trim();
+  const shape = document.getElementById('slNodeShape').value;
+  // ●は文字を持たないので、ラベル空でも追加できるようにする
+  if(!rawId && !label && !isDot(shape)) return;
+  if(!state.lanes.length){ alert('先にレーンを追加してください。'); return; }
+  const laneId = document.getElementById('slNodeLane').value;
+  const phaseId = document.getElementById('slNodePhase').value;
+  const color = colorOf('slNodeColor');
+  const nameFor = (id)=> isDot(shape) ? label : (label || id);
+  if(state.editNodeIdx !== null){
+    const idx = state.editNodeIdx;
+    const oldId = state.nodes[idx].id;
+    const id = sanitizeId(rawId || oldId, 'n');
+    if(id !== oldId){
+      state.links.forEach(e=>{ if(e.from === oldId) e.from = id; if(e.to === oldId) e.to = id; });
+    }
+    state.nodes[idx] = { id, label: nameFor(id), laneId, phaseId, shape, color };
+  }else{
+    const base = isDot(shape) ? (shape === 'startdot' ? 'start' : 'end') : ('n' + counters.node++);
+    const id = uniqueId(sanitizeId(rawId || base, 'n'), allIds());
+    state.nodes.push({ id, label: nameFor(id), laneId, phaseId, shape, color });
+  }
+  resetNodeForm(); refreshLists(); regenerateCode();
+}
+function fillNodeForm(n){
+  document.getElementById('slNodeId').value = n.id;
+  document.getElementById('slNodeLabel').value = n.label;
+  document.getElementById('slNodeLane').value = n.laneId || '';
+  document.getElementById('slNodePhase').value = n.phaseId || '';
+  document.getElementById('slNodeShape').value = n.shape || 'process';
+  const c = document.getElementById('slNodeColor');
+  c.value = n.color || '#FFFFFF'; c.dataset.none = n.color ? '' : '1';
+  document.getElementById('slAddNode').textContent = '✓ 図形を更新';
+  document.getElementById('slNodeCancel').style.display = 'flex';
+}
+function resetNodeForm(){
+  const el = document.getElementById('slNodeId');
+  if(!el) return;
+  el.value = ''; document.getElementById('slNodeLabel').value = '';
+  state.editNodeIdx = null;
+  document.getElementById('slAddNode').textContent = '＋ 図形を追加';
+  document.getElementById('slNodeCancel').style.display = 'none';
+}
+
+/* ---- 接続 ---- */
+/* [*] が選ばれたら、相手側と同じレーンに開始●／終了◉ を実体として作る。
+   フェーズがあるときは1つ手前／1つ先の列に置き、以後は普通の図形として動かせる。 */
+function createMarker(shape, counterpartId){
+  const cp = state.nodes.find(n=>n.id === counterpartId);
+  if(!cp) return null;
+  let phaseId = cp.phaseId;
+  const pi = state.phases.findIndex(p=>p.id === cp.phaseId);
+  if(pi >= 0){
+    const target = shape === 'startdot' ? pi - 1 : pi + 1;
+    if(target >= 0 && target < state.phases.length) phaseId = state.phases[target].id;
+  }
+  const id = uniqueId(shape === 'startdot' ? 'start' : 'end', allIds());
+  state.nodes.push({ id, label:'', laneId: cp.laneId, phaseId, shape, color:'' });
+  return id;
+}
+
+function submitLink(){
+  let from = document.getElementById('slLinkFrom').value;
+  let to = document.getElementById('slLinkTo').value;
+  if(!from || !to){ alert('先に図形を2つ以上追加してください。'); return; }
+  if(from === STAR && to === STAR){ alert('開始と終了だけをつなぐことはできません。'); return; }
+  if(from === STAR) from = createMarker('startdot', to);
+  if(to === STAR)   to   = createMarker('enddot', from);
+  if(!from || !to){ alert('接続先の図形が見つかりませんでした。'); return; }
+  const label = document.getElementById('slLinkLabel').value.trim();
+  const style = document.getElementById('slLinkStyle').value;
+  if(state.editLinkIdx !== null){
+    state.links[state.editLinkIdx] = { from, to, label, style };
+  }else{
+    state.links.push({ from, to, label, style });
+  }
+  resetLinkForm(); refreshLists(); regenerateCode();
+}
+function fillLinkForm(e){
+  document.getElementById('slLinkFrom').value = e.from;
+  document.getElementById('slLinkTo').value = e.to;
+  document.getElementById('slLinkLabel').value = e.label || '';
+  document.getElementById('slLinkStyle').value = e.style || 'solid';
+  document.getElementById('slAddLink').textContent = '✓ 接続を更新';
+  document.getElementById('slLinkCancel').style.display = 'flex';
+}
+function resetLinkForm(){
+  const el = document.getElementById('slLinkLabel');
+  if(!el) return;
+  el.value = '';
+  state.editLinkIdx = null;
+  document.getElementById('slAddLink').textContent = '＋ 接続を追加';
+  document.getElementById('slLinkCancel').style.display = 'none';
+}
+
+/* ---- 一覧の再構築 ---- */
+function refreshLists(){
+  const laneList = document.getElementById('slLaneList');
+  if(!laneList) return;
+  const phaseList = document.getElementById('slPhaseList');
+  const nodeList = document.getElementById('slNodeList');
+  const linkList = document.getElementById('slLinkList');
+
+  document.getElementById('slTitle').value = state.title || '';
+
+  // レーン
+  laneList.innerHTML = state.lanes.length ? '' : '<div class="empty-note">まだレーンがありません</div>';
+  state.lanes.forEach((l,i)=>{
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    const sw = l.color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${esc(l.color)};border:1px solid #999;flex-shrink:0;"></span>` : '';
+    row.innerHTML = `${sw}<span class="item-text">${esc(l.id)}: ${esc(l.label)}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+    row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editLaneIdx = i; fillLaneForm(l); });
+    row.querySelector('.del-btn').addEventListener('click', ()=>{
+      const removed = state.lanes[i].id;
+      state.lanes.splice(i,1);
+      const gone = state.nodes.filter(n=>n.laneId === removed).map(n=>n.id);
+      state.nodes = state.nodes.filter(n=>n.laneId !== removed);
+      state.links = state.links.filter(e=>!gone.includes(e.from) && !gone.includes(e.to));
+      if(state.editLaneIdx === i) resetLaneForm();
+      refreshLists(); regenerateCode();
+    });
+    laneList.appendChild(row);
+  });
+  makeSortable(laneList, state.lanes, ()=>{ resetLaneForm(); refreshLists(); regenerateCode(); });
+
+  // フェーズ
+  phaseList.innerHTML = state.phases.length ? '' : '<div class="empty-note">まだフェーズがありません</div>';
+  state.phases.forEach((p,i)=>{
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `<span class="item-text">${esc(p.id)}: ${esc(p.label)}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+    row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editPhaseIdx = i; fillPhaseForm(p); });
+    row.querySelector('.del-btn').addEventListener('click', ()=>{
+      const removed = state.phases[i].id;
+      state.phases.splice(i,1);
+      state.nodes.forEach(n=>{ if(n.phaseId === removed) n.phaseId = ''; });
+      if(state.editPhaseIdx === i) resetPhaseForm();
+      refreshLists(); regenerateCode();
+    });
+    phaseList.appendChild(row);
+  });
+  makeSortable(phaseList, state.phases, ()=>{ resetPhaseForm(); refreshLists(); regenerateCode(); });
+
+  // 図形フォームの選択肢
+  const laneSel = document.getElementById('slNodeLane');
+  const phaseSel = document.getElementById('slNodePhase');
+  const keepLane = laneSel.value, keepPhase = phaseSel.value;
+  laneSel.innerHTML = state.lanes.map(l=>`<option value="${esc(l.id)}">${esc(l.id)}（${esc(l.label)}）</option>`).join('')
+    || '<option value="">（レーンを先に追加）</option>';
+  phaseSel.innerHTML = '<option value="">（指定なし）</option>' +
+    state.phases.map(p=>`<option value="${esc(p.id)}">${esc(p.id)}（${esc(p.label)}）</option>`).join('');
+  if(keepLane) laneSel.value = keepLane;
+  if(keepPhase) phaseSel.value = keepPhase;
+
+  // 図形
+  nodeList.innerHTML = state.nodes.length ? '' : '<div class="empty-note">まだ図形がありません</div>';
+  state.nodes.forEach((n,i)=>{
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    const lane = state.lanes.find(l=>l.id === n.laneId);
+    const badge = lane ? `<span class="key-badge">${esc(lane.label)}</span>` : '';
+    const sw = n.color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${esc(n.color)};border:1px solid #999;flex-shrink:0;"></span>` : '';
+    const shown = n.label || (n.shape === 'startdot' ? '● 開始' : n.shape === 'enddot' ? '◉ 終了' : '');
+    row.innerHTML = `${sw}${badge}<span class="item-text">${esc(n.id)}: ${esc(shown)}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+    row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editNodeIdx = i; fillNodeForm(n); });
+    row.querySelector('.del-btn').addEventListener('click', ()=>{
+      const removed = state.nodes[i].id;
+      state.nodes.splice(i,1);
+      state.links = state.links.filter(e=>e.from !== removed && e.to !== removed);
+      if(state.editNodeIdx === i) resetNodeForm();
+      refreshLists(); regenerateCode();
+    });
+    nodeList.appendChild(row);
+  });
+  makeSortable(nodeList, state.nodes, ()=>{ resetNodeForm(); refreshLists(); regenerateCode(); });
+
+  // 接続フォームの選択肢
+  const fromSel = document.getElementById('slLinkFrom');
+  const toSel = document.getElementById('slLinkTo');
+  const keepFrom = fromSel.value, keepTo = toSel.value;
+  const opts = state.nodes.map(n=>{
+    const name = n.label || (n.shape === 'startdot' ? '● 開始' : n.shape === 'enddot' ? '◉ 終了' : '');
+    return `<option value="${esc(n.id)}">${esc(n.id)}（${esc(name)}）</option>`;
+  }).join('');
+  // 状態遷移図と同じく、from に選べば開始●、to に選べば終了◉ を作る
+  const starOpt = `<option value="${STAR}">${STAR}（開始/終了 ●）</option>`;
+  fromSel.innerHTML = starOpt + opts; toSel.innerHTML = starOpt + opts;
+  if(keepFrom) fromSel.value = keepFrom;
+  if(keepTo) toSel.value = keepTo;
+
+  // 接続
+  linkList.innerHTML = state.links.length ? '' : '<div class="empty-note">まだ接続がありません</div>';
+  state.links.forEach((e,i)=>{
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    const arrow = e.style === 'dashed' ? '⇢' : '→';
+    row.innerHTML = `<span class="item-text">${esc(e.from)} ${arrow} ${esc(e.to)}${e.label ? ' [' + esc(e.label) + ']' : ''}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+    row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editLinkIdx = i; fillLinkForm(e); });
+    row.querySelector('.del-btn').addEventListener('click', ()=>{
+      state.links.splice(i,1);
+      if(state.editLinkIdx === i) resetLinkForm();
+      refreshLists(); regenerateCode();
+    });
+    linkList.appendChild(row);
+  });
+  makeSortable(linkList, state.links, ()=>{ resetLinkForm(); refreshLists(); regenerateCode(); });
+}
+
+/* ============ サンプル / クリア ============ */
+function loadSample(){
+  Object.assign(state, emptyState(), {
+    title: '受注フロー',
+    direction: document.getElementById('dirSelect').value,
+    lanes: [
+      { id:'customer',  label:'顧客',   color:'#E3F2FD' },
+      { id:'sales',     label:'営業部', color:'#FFF9C4' },
+      { id:'warehouse', label:'倉庫',   color:'#C8E6C9' },
+    ],
+    phases: [
+      { id:'p1', label:'受付' },
+      { id:'p2', label:'審査' },
+      { id:'p3', label:'出荷' },
+    ],
+    nodes: [
+      { id:'start1', label:'',           laneId:'customer',  phaseId:'p1', shape:'startdot', color:'' },
+      { id:'n1', label:'申込書を送る',   laneId:'customer',  phaseId:'p1', shape:'process',  color:'' },
+      { id:'n2', label:'申込を受理',     laneId:'sales',     phaseId:'p1', shape:'process',  color:'' },
+      { id:'n3', label:'与信を確認',     laneId:'sales',     phaseId:'p2', shape:'decision', color:'#FFF9C4' },
+      { id:'n4', label:'注文書を発行',   laneId:'sales',     phaseId:'p2', shape:'io',       color:'' },
+      { id:'n5', label:'商品を出庫',     laneId:'warehouse', phaseId:'p3', shape:'process',  color:'' },
+      { id:'n6', label:'商品を受け取る', laneId:'customer',  phaseId:'p3', shape:'process',  color:'#C8E6C9' },
+      { id:'end1', label:'',             laneId:'customer',  phaseId:'p3', shape:'enddot',   color:'' },
+    ],
+    links: [
+      { from:'start1', to:'n1', label:'',       style:'solid' },
+      { from:'n1', to:'n2', label:'',       style:'solid' },
+      { from:'n2', to:'n3', label:'',       style:'solid' },
+      { from:'n3', to:'n4', label:'承認',   style:'solid' },
+      { from:'n3', to:'n2', label:'差戻し', style:'dashed' },
+      { from:'n4', to:'n5', label:'',       style:'solid' },
+      { from:'n5', to:'n6', label:'',       style:'solid' },
+      { from:'n6', to:'end1', label:'',     style:'solid' },
+    ],
+  });
+  counters = { lane:4, phase:4, node:7 };
+  afterStateReplaced();
+}
+function clearAll(){
+  Object.assign(state, emptyState(), { direction: document.getElementById('dirSelect').value });
+  counters = { lane:1, phase:1, node:1 };
+  afterStateReplaced();
+}
+function afterStateReplaced(){
+  manualMode = false;
+  document.getElementById('editToggle').checked = false;
+  document.getElementById('codeArea').readOnly = true;
+  document.getElementById('dirSelect').value = state.direction;
+  cancelEditing();
+  refreshLists();
+  regenerateCode();
+  renderPreview();
+}
+
+/* ============ ヘッダー操作 ============ */
+document.getElementById('btnLoadSample').addEventListener('click', loadSample);
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  if(state.lanes.length || state.nodes.length){
+    if(!confirm('現在の内容を消去します。よろしいですか？')) return;
+  }
+  clearAll();
+});
+
+document.getElementById('btnOpenFile').addEventListener('click', ()=> document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e=>{
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const { state: next, errors } = parseCode(String(reader.result));
+    if(errors.length && !next.lanes.length && !next.nodes.length){
+      alert('読み込めませんでした:\n' + errors.slice(0,5).join('\n'));
+      return;
+    }
+    Object.assign(state, emptyState(), next);
+    afterStateReplaced();
+    if(errors.length) showParseErrors(errors);
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('btnCopyCode').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(document.getElementById('codeArea').value)
+    .then(()=>flashBtn('btnCopyCode','コピーしました'));
+});
+document.getElementById('btnDownloadSwim').addEventListener('click', ()=>{
+  downloadBlob(document.getElementById('codeArea').value + '\n', 'diagram.swim', 'text/plain');
+});
+document.getElementById('btnDownloadSvg').addEventListener('click', ()=>{
+  const svgEl = document.querySelector('#preview svg');
+  if(!svgEl){ alert('先に図を作成してください。'); return; }
+  const clean = svgEl.cloneNode(true);
+  // クリック用に重ねている透明線は保存物に含めない
+  clean.querySelectorAll('.sl-hit').forEach(el=>el.remove());
+  clean.querySelectorAll('[data-pick]').forEach(el=>{ el.removeAttribute('data-pick'); el.removeAttribute('data-idx'); });
+  const text = new XMLSerializer().serializeToString(clean);
+  downloadBlob('<?xml version="1.0" encoding="UTF-8"?>\n' + text, 'diagram.svg', 'image/svg+xml');
+});
+document.getElementById('btnDownloadHtml').addEventListener('click', ()=>{
+  const svgEl = document.querySelector('#preview svg');
+  if(!svgEl){ alert('先に図を作成してください。'); return; }
+  const clean = svgEl.cloneNode(true);
+  clean.querySelectorAll('.sl-hit').forEach(el=>el.remove());
+  clean.querySelectorAll('[data-pick]').forEach(el=>{ el.removeAttribute('data-pick'); el.removeAttribute('data-idx'); });
+  const svgText = new XMLSerializer().serializeToString(clean);
+  const html = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>${esc(state.title || 'Swimlane Diagram')}</title>
+<style>body{margin:0;padding:24px;background:#fff;font-family:sans-serif;}svg{max-width:100%;height:auto;}</style>
+</head><body>
+${svgText}
+</body></html>`;
+  downloadBlob(html, 'diagram.html', 'text/html');
+});
+
+document.getElementById('btnHelp').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.add('open'));
+document.getElementById('btnCloseHelp').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.remove('open'));
+document.getElementById('helpOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'helpOverlay') e.currentTarget.classList.remove('open');
+});
+document.getElementById('btnCredits').addEventListener('click', ()=> document.getElementById('creditsOverlay').classList.add('open'));
+document.getElementById('btnCloseCredits').addEventListener('click', ()=> document.getElementById('creditsOverlay').classList.remove('open'));
+document.getElementById('creditsOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'creditsOverlay') e.currentTarget.classList.remove('open');
+});
+
+/* ============ コード直接編集 ============ */
+document.getElementById('editToggle').addEventListener('change', e=>{
+  manualMode = e.target.checked;
+  document.getElementById('codeArea').readOnly = !manualMode;
+  if(!manualMode) regenerateCode();
+});
+document.getElementById('codeArea').addEventListener('input', ()=>{
+  if(!manualMode) return;
+  const { state: next, errors } = parseCode(document.getElementById('codeArea').value);
+  if(errors.length){ showParseErrors(errors); return; }
+  Object.assign(state, next, {
+    editLaneIdx:null, editPhaseIdx:null, editNodeIdx:null, editLinkIdx:null,
+  });
+  document.getElementById('dirSelect').value = state.direction;
+  refreshLists();
+  renderPreview();
+});
+
+/* ============ コードドロワー / リサイザ ============ */
+document.getElementById('btnToggleDrawer').addEventListener('click', ()=>{
+  const drawer = document.getElementById('codeDrawer');
+  drawer.classList.toggle('collapsed');
+  document.getElementById('btnToggleDrawer').textContent = drawer.classList.contains('collapsed') ? '展開する ▴' : '折りたたむ ▾';
+});
+document.getElementById('btnToggleHeader').addEventListener('click', ()=>{
+  const controls = document.getElementById('headerControls');
+  const btn = document.getElementById('btnToggleHeader');
+  const collapsed = controls.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▽' : '△';
+  btn.setAttribute('aria-expanded', String(!collapsed));
+});
+(function(){
+  const resizer = document.getElementById('panelResizer');
+  const builder = document.getElementById('builderPanel');
+  let dragging = false, startY = 0, startH = 0;
+  resizer.addEventListener('pointerdown', e=>{
+    dragging = true; startY = e.clientY; startH = builder.getBoundingClientRect().height;
+    resizer.classList.add('dragging'); resizer.setPointerCapture(e.pointerId);
+  });
+  resizer.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const h = Math.max(120, startH + (e.clientY - startY));
+    builder.style.maxHeight = 'none';
+    builder.style.height = h + 'px';
+  });
+  const stop = ()=>{ dragging = false; resizer.classList.remove('dragging'); };
+  resizer.addEventListener('pointerup', stop);
+  resizer.addEventListener('pointercancel', stop);
+  const bp = window.matchMedia('(max-width:760px)');
+  bp.addEventListener('change', e=>{
+    if(!e.matches){ builder.style.height = ''; builder.style.maxHeight = ''; }
+  });
+})();
+
+/* ============ 初期化 ============ */
+renderBuilder();
+loadSample();
+</script>
+</body>
+</html>
