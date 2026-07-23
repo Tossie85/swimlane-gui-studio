@@ -175,6 +175,43 @@
   #preview [data-pick].sl-selected > .sl-shape{ stroke-width:3.5; }
   #preview path[data-pick].sl-selected{ stroke-width:3.5; }
 
+
+  /* ---------- プレビューの拡大縮小 ---------- */
+  /* canvas-wrap はスクロールするので、操作ボタンはその外側に重ねて固定する */
+  .canvas-area{ position:relative; flex:1; display:flex; min-height:0; }
+  .zoom-bar{
+    position:absolute; right:14px; bottom:14px; z-index:5;
+    display:flex; align-items:center; gap:2px;
+    background:rgba(255,255,255,.93);
+    border:1px solid #D3DEEA; border-radius:8px;
+    box-shadow:0 2px 8px rgba(16,35,63,.14);
+    padding:3px;
+  }
+  .zoom-bar button{
+    border:none; background:none; cursor:pointer; color:var(--text-ink);
+    font-family:var(--font-sans); border-radius:5px; padding:4px 7px; line-height:1;
+  }
+  .zoom-bar button:hover{ background:#EAF1F8; }
+  .zoom-btn{ font-size:15px; width:26px; }
+  .zoom-level{ font-size:11.5px; min-width:48px; font-variant-numeric:tabular-nums; }
+
+  /* ドラッグしてスクロール（パン）。掴めるのは、はみ出していて動かせるときだけ */
+  .canvas-wrap.scrollable{ cursor:grab; }
+  .canvas-wrap.panning, .canvas-wrap.panning *{ cursor:grabbing !important; user-select:none; }
+
+  /* ---------- コード欄の高さ調整 ---------- */
+  .drawer-resizer{
+    flex-shrink:0; height:8px; cursor:row-resize; touch-action:none;
+    background:var(--ink-800); border-top:1px solid var(--ink-line);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .drawer-resizer::before{
+    content:""; width:38px; height:3px; border-radius:2px; background:#3E577A;
+  }
+  .drawer-resizer:hover::before, .drawer-resizer.dragging::before{ background:var(--cyan-dim); }
+  /* ドラッグ中に高さのアニメーションが効くと、指の動きから遅れて追従してしまう */
+  .code-drawer.resizing{ transition:none; }
+
   /* ---------- CODE DRAWER ---------- */
   .code-drawer{
     flex-shrink:0;
@@ -462,11 +499,19 @@ n1 -&gt; n2 "確認依頼"</pre>
   <aside class="panel-builder" id="builderPanel"></aside>
   <div class="panel-resizer" id="panelResizer"></div>
   <section class="panel-preview">
+    <div class="canvas-area">
     <div class="canvas-wrap">
       <span class="canvas-corner tl"></span><span class="canvas-corner tr"></span>
       <span class="canvas-corner bl"></span><span class="canvas-corner br"></span>
       <div id="preview"><div class="preview-placeholder">ここにプレビューが表示されます</div></div>
     </div>
+    <div class="zoom-bar" id="zoomBar">
+      <button type="button" class="zoom-btn" id="btnZoomOut" title="縮小" aria-label="縮小">−</button>
+      <button type="button" class="zoom-level" id="btnZoomReset" title="等倍に戻す" aria-label="拡大率をリセット">100%</button>
+      <button type="button" class="zoom-btn" id="btnZoomIn" title="拡大" aria-label="拡大">＋</button>
+    </div>
+    </div>
+    <div class="drawer-resizer" id="drawerResizer" role="separator" aria-orientation="horizontal" aria-label="コード欄の高さ（ドラッグで調整）"></div>
     <div class="code-drawer" id="codeDrawer">
       <div class="code-drawer-bar">
         <span class="title">スイムレーン コード (.swim)</span>
@@ -1087,6 +1132,7 @@ function renderPreview(){
   }
   try{
     target.innerHTML = drawSvg();
+    applyZoom();
   }catch(err){
     target.innerHTML = `<div class="preview-error">描画エラー:\n${esc(err && err.message ? err.message : err)}</div>`;
   }
@@ -1711,11 +1757,195 @@ document.getElementById('codeArea').addEventListener('input', ()=>{
 });
 
 /* ============ コードドロワー / リサイザ ============ */
-document.getElementById('btnToggleDrawer').addEventListener('click', ()=>{
+/* ============ コード欄の高さ調整 ============ */
+/* 展開時の高さ。ドラッグで更新し、折りたたみ→再展開しても維持する */
+let drawerHeight = 230;
+const DRAWER_MIN = 90;
+
+function setDrawerHeight(px){
   const drawer = document.getElementById('codeDrawer');
-  drawer.classList.toggle('collapsed');
-  document.getElementById('btnToggleDrawer').textContent = drawer.classList.contains('collapsed') ? '展開する ▴' : '折りたたむ ▾';
-});
+  // プレビューが潰れきらないよう、上側にも最低限の余地を残す
+  const max = Math.max(DRAWER_MIN, drawer.parentElement.clientHeight - 120);
+  drawerHeight = Math.min(Math.max(px, DRAWER_MIN), max);
+  drawer.style.height = drawerHeight + 'px';
+}
+
+/* 折りたたみ時はCSS側の高さ(38px)を使いたいので、インラインの高さを外す。
+   インラインスタイルはクラスより強いため、付けたままだと折りたためない。 */
+function toggleDrawer(collapse){
+  const drawer = document.getElementById('codeDrawer');
+  const btn = document.getElementById('btnToggleDrawer');
+  const next = (collapse === undefined) ? !drawer.classList.contains('collapsed') : collapse;
+  drawer.classList.toggle('collapsed', next);
+  drawer.style.height = next ? '' : drawerHeight + 'px';
+  btn.textContent = next ? '展開する ▴' : '折りたたむ ▾';
+}
+document.getElementById('btnToggleDrawer').addEventListener('click', ()=> toggleDrawer());
+
+(function setupDrawerResizer(){
+  const handle = document.getElementById('drawerResizer');
+  const drawer = document.getElementById('codeDrawer');
+  // ドラッグ中かどうかは自前のフラグで持つ。setPointerCapture が使えない場面でも
+  // 動くようにしておく（capture はハンドルの外へ出てもイベントを拾うための保険）。
+  let dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('pointerdown', e=>{
+    if(drawer.classList.contains('collapsed')) toggleDrawer(false);
+    dragging = true;
+    startY = e.clientY;
+    startH = drawer.getBoundingClientRect().height;
+    drawer.classList.add('resizing');
+    handle.classList.add('dragging');
+    try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    setDrawerHeight(startH + (startY - e.clientY));   // 上へドラッグすると高くなる
+  });
+  const end = e=>{
+    if(!dragging) return;
+    dragging = false;
+    try{ handle.releasePointerCapture(e.pointerId); }catch(err){}
+    drawer.classList.remove('resizing');
+    handle.classList.remove('dragging');
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+  handle.addEventListener('lostpointercapture', end);
+  handle.addEventListener('dblclick', ()=> setDrawerHeight(230));   // 既定の高さに戻す
+})();
+
+/* ============ プレビューの拡大縮小 ============ */
+let previewZoom = 1;
+const ZOOM_MIN = 0.2, ZOOM_MAX = 6;
+
+/* 100% は「何も指定しないときの表示サイズ」。
+   viewBox の値は実際の表示幅と一致しないことがあり（拡大したのに縮む）、
+   基準には使えない。描画直後はまだ幅に触れていないので、その時点で実測して覚えておく。 */
+function applyZoom(){
+  applyZoomCore();
+  updatePanCursor();
+}
+
+/* はみ出していて動かせるときだけ、掴めるカーソルにする */
+function updatePanCursor(){
+  const wrap = document.querySelector('.canvas-wrap');
+  if(!wrap) return;
+  wrap.classList.toggle('scrollable',
+    wrap.scrollWidth > wrap.clientWidth || wrap.scrollHeight > wrap.clientHeight);
+}
+
+function applyZoomCore(){
+  const label = document.getElementById('btnZoomReset');
+  if(label) label.textContent = Math.round(previewZoom * 100) + '%';
+  const svg = document.querySelector('#preview svg');
+  if(!svg) return;
+  if(svg.__baseW === undefined){
+    const w = svg.getBoundingClientRect().width;
+    if(!w) return;              // まだ描画されていない
+    svg.__baseW = w;
+    // Mermaidは自前の max-width をインラインで持っている。等倍に戻すときに
+    // これを消してしまうと、拡大していないのに枠いっぱいまで広がってしまう。
+    svg.__maxW = svg.style.maxWidth;
+    svg.__maxH = svg.style.maxHeight;
+  }
+  const host = document.getElementById('preview');
+  if(previewZoom === 1){
+    svg.style.width = ''; svg.style.height = '';
+    svg.style.maxWidth = svg.__maxW; svg.style.maxHeight = svg.__maxH;
+    svg.style.flexShrink = '';
+    host.style.justifyContent = '';
+    return;
+  }
+  // 枠に収めるための上限が残っていると、拡大しても伸びずに潰れてしまう
+  svg.style.maxWidth = 'none';
+  svg.style.maxHeight = 'none';
+  // SVGはフレックスの子なので、既定のままだと枠幅まで縮められて拡大できない
+  svg.style.flexShrink = '0';
+  // 中央寄せのまま枠からはみ出すと、左側がスクロールでは辿れない位置へ隠れてしまう
+  host.style.justifyContent = 'flex-start';
+  svg.style.width = (svg.__baseW * previewZoom) + 'px';
+  svg.style.height = 'auto';
+}
+
+function setZoom(z, anchor){
+  const wrap = document.querySelector('.canvas-wrap');
+  const prev = previewZoom;
+  previewZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  if(previewZoom === prev) return;
+  applyZoom();
+  if(!anchor) return;
+  // カーソルの下にある点が動かないよう、拡大率の比でスクロール位置を合わせる
+  const ratio = previewZoom / prev;
+  wrap.scrollLeft = (anchor.x + wrap.scrollLeft) * ratio - anchor.x;
+  wrap.scrollTop  = (anchor.y + wrap.scrollTop)  * ratio - anchor.y;
+}
+
+(function setupZoom(){
+  const wrap = document.querySelector('.canvas-wrap');
+  wrap.addEventListener('wheel', e=>{
+    if(!document.querySelector('#preview svg')) return;
+    // Shift+ホイールは、拡大したあとに図をたどるスクロールとして残しておく
+    if(e.shiftKey) return;
+    e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    setZoom(previewZoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), { x:e.clientX - rect.left, y:e.clientY - rect.top });
+  }, { passive:false });
+  document.getElementById('btnZoomIn').addEventListener('click', ()=> setZoom(previewZoom * 1.25));
+  document.getElementById('btnZoomOut').addEventListener('click', ()=> setZoom(previewZoom / 1.25));
+  document.getElementById('btnZoomReset').addEventListener('click', ()=> setZoom(1));
+})();
+
+/* ============ ドラッグしてスクロール（パン） ============ */
+(function setupPan(){
+  const wrap = document.querySelector('.canvas-wrap');
+  // これ未満の動きは「クリック」とみなす。図形の選択を潰さないための遊び
+  const PAN_THRESHOLD = 4;
+  let down = false, panned = false, sx = 0, sy = 0, sl = 0, st = 0;
+
+  wrap.addEventListener('pointerdown', e=>{
+    // タッチは端末側のスクロールに任せる。右クリックは対象外
+    if(e.pointerType === 'touch' || (e.button !== 0 && e.button !== 1)) return;
+    down = true; panned = false;
+    sx = e.clientX; sy = e.clientY;
+    sl = wrap.scrollLeft; st = wrap.scrollTop;
+    if(e.button === 1) e.preventDefault();   // 中ボタンの自動スクロールを抑える
+  });
+
+  wrap.addEventListener('pointermove', e=>{
+    if(!down) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if(!panned && Math.hypot(dx, dy) < PAN_THRESHOLD) return;
+    if(!panned){
+      panned = true;
+      wrap.classList.add('panning');
+      // 枠の外へ出ても追従できるように
+      try{ wrap.setPointerCapture(e.pointerId); }catch(err){}
+    }
+    wrap.scrollLeft = sl - dx;
+    wrap.scrollTop  = st - dy;
+    e.preventDefault();
+  });
+
+  const end = e=>{
+    if(!down) return;
+    down = false;
+    try{ wrap.releasePointerCapture(e.pointerId); }catch(err){}
+    wrap.classList.remove('panning');
+  };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
+  wrap.addEventListener('lostpointercapture', end);
+
+  // 動かしてから離した場合は、図形の選択として扱わない。
+  // 選択はプレビュー側で click を拾っているので、その手前（キャプチャ段階）で止める。
+  wrap.addEventListener('click', e=>{
+    if(!panned) return;
+    panned = false;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+})();
 document.getElementById('btnToggleHeader').addEventListener('click', ()=>{
   const controls = document.getElementById('headerControls');
   const btn = document.getElementById('btnToggleHeader');
