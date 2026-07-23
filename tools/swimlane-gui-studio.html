@@ -475,7 +475,7 @@ n1 -&gt; n2 "確認依頼"</pre>
       <p><code>lane=</code> や <code>phase=</code> のような名前付き属性にしているため、後から項目を増やしても古いファイルをそのまま読み込めます。<code>direction</code> は <code>LR</code>（左から右）と <code>TB</code>（上から下）が指定でき、<code>TD</code> は <code>TB</code> と同じ扱いです。</p>
 
       <h3>開始・終了の「●」</h3>
-      <p>接続の from に <code>[*]</code> を選ぶと開始（●）、to に選ぶと終了（◉）が、相手と同じレーンに作られます。フェーズがある場合は1つ手前／1つ先の列に置かれ、そのあとは普通の図形として位置や所属を変更できます。図形の「形」から直接追加することもできます。</p>
+      <p>接続の from に <code>[*]</code> を選ぶと開始（●）、to に選ぶと終了（◉）が、相手と同じレーン・同じフェーズに作られます。開始は接続先の手前（LRなら左／TBなら上）、終了は先（右／下）に、位置を揃えて描かれます。そのあとは普通の図形として位置や所属を変更できます。図形の「形」から直接追加することもできます。</p>
 
       <h3>保存（エクスポート）</h3>
       <div class="credit-item">
@@ -560,7 +560,7 @@ n1 -&gt; n2 "確認依頼"</pre>
 function emptyState(){
   return {
     title: '',
-    direction: 'LR',
+    direction: 'TB',
     lanes: [],       // { id, label, color }
     phases: [],      // { id, label }
     nodes: [],       // { id, label, laneId, phaseId, shape, color }
@@ -584,6 +584,10 @@ const SHAPES = [
 /* 開始/終了の「●」。状態遷移図の [*] にあたるもので、他の図形より小さく描く */
 const DOT_SHAPES = ['startdot','enddot'];
 const DOT_SIZE = 26;
+/* ●と接続先ノードの間隔。フェーズ間の隙間(gapMain)に収まる大きさにして、
+   前のフェーズの図形と重ならないようにする（DOT_SIZE + DOT_GAP <= gapMain）。 */
+const DOT_GAP = 8;
+const DOT_SLOT = DOT_SIZE + DOT_GAP;
 const isDot = (shape)=> DOT_SHAPES.includes(shape);
 const STAR = '[*]';
 const LINK_STYLES = [
@@ -918,17 +922,8 @@ const LAYOUT = {
   nodeW: 168, nodeH: 58,
   gapMain: 34,        // フェーズとフェーズの間隔
   gapInner: 22,       // 同じフェーズ内で流れ方向に並べるときの間隔
-  gapCross: 18,       // レーンを横切る向き（折り返したとき）の間隔
-  maxPerRun: 3,       // 流れ方向に並べる上限。これを超えたら折り返して縦横を混在させる
+  gapCross: 18,       // レーンを横切る向き（分岐で枝を並べたとき）の間隔
 };
-
-/* 1つのセル(レーン×フェーズ)に k 個あるとき、流れ方向に何個並べるかを決める。
-   基本は流れ方向に並べ、多すぎる場合だけ折り返して段数を増やす。 */
-function runLength(k){
-  if(k <= 1) return 1;
-  const runs = Math.ceil(k / LAYOUT.maxPerRun);   // 必要な段数
-  return Math.ceil(k / runs);                     // 段数をそろえて均等に割る
-}
 
 function computeLayout(){
   const L = LAYOUT;
@@ -938,11 +933,31 @@ function computeLayout(){
   const phases = state.phases.length ? state.phases : [{ id:'__all', label:'' }];
   const hasPhaseHeader = state.phases.length > 0;
 
+  // 開始/終了の●は、接続先ノードの隣（開始=左/上、終了=右/下）へ後から揃えて置く。
+  // グリッドの列には入れないので、●のせいで列がずれて矢印が遠回りするのを防げる。
+  const anchorNodeOf = (dot)=>{
+    const linkId = dot.shape === 'startdot'
+      ? (state.links.find(e=>e.from === dot.id) || {}).to
+      : (state.links.find(e=>e.to === dot.id) || {}).from;
+    if(!linkId) return null;
+    const a = state.nodes.find(n=>n.id === linkId);
+    return (a && !isDot(a.shape)) ? a : null;   // 相手も●なら揃えようがないのでグリッドに残す
+  };
+  const dotPlace = new Map();   // dotNode -> anchorNode（隣に揃えて置く●）
+  if(lanes.length){
+    state.nodes.forEach(n=>{ if(isDot(n.shape)){ const a = anchorNodeOf(n); if(a) dotPlace.set(n, a); } });
+  }
+  let hasLead = false, hasTrail = false;   // 先頭の開始● / 末尾の終了● のための余白が要るか
+  dotPlace.forEach((a, d)=>{ if(d.shape === 'startdot') hasLead = true; else hasTrail = true; });
+  const leadPad  = hasLead  ? DOT_SLOT : 0;
+  const trailPad = hasTrail ? DOT_SLOT : 0;
+
   // セル(レーン×フェーズ)ごとにノードを詰める
   const cell = new Map();
   const key = (l,p)=> l + '\u001f' + p;
   const orphans = [];
   state.nodes.forEach(n=>{
+    if(dotPlace.has(n)) return;   // 隣に揃えて置く●はグリッドから除外する
     const laneId = n.laneId || (lanes[0] && lanes[0].id);
     const phaseId = state.phases.length ? n.phaseId || phases[0].id : '__all';
     if(!laneId){ orphans.push(n); return; }
@@ -955,12 +970,50 @@ function computeLayout(){
   const nodeMain  = dir === 'LR' ? L.nodeW : L.nodeH;
   const nodeCross = dir === 'LR' ? L.nodeH : L.nodeW;
 
-  // セルごとに「流れ方向に何個並べ、何段になるか」を先に求める
+  // セル内のノードを「フロー深さ(rank)」で並べる。
+  //   ・rank = そのセル内で前につながる距離の最大（前がなければ0）
+  //   ・同じ rank のノードは交差方向に横並び（分岐の枝が並ぶ … LRは縦・TBは横。仕様5）
+  //   ・rank が進むと流れ方向に進む（直線的な連鎖は従来どおり流れ方向に伸びる）
+  // これで「分岐元と枝が同じセルにある」ときも、枝が別ノードの線上に重ならない（ルール3）。
+  function computeCellLayout(list){
+    const ids = new Set(list.map(n=>n.id));
+    const predOf = (id)=> state.links
+      .filter(e=>e.to === id && ids.has(e.from) && e.from !== id)
+      .map(e=>e.from);
+    const rank = new Map();
+    const rankOf = (id, seen)=>{
+      if(rank.has(id)) return rank.get(id);
+      if(seen.has(id)) return 0;      // 循環しても止まるように
+      seen.add(id);
+      let r = 0;
+      predOf(id).forEach(p=>{ r = Math.max(r, rankOf(p, seen) + 1); });
+      seen.delete(id);
+      rank.set(id, r);
+      return r;
+    };
+    list.forEach(n=> rankOf(n.id, new Set()));
+    // rank ごとにまとめ、元の並び順を保つ
+    const groups = new Map();
+    list.forEach(n=>{ const r = rank.get(n.id); if(!groups.has(r)) groups.set(r, []); groups.get(r).push(n); });
+    const ranks = [...groups.keys()].sort((a,b)=>a-b);
+    const pos = new Map();
+    let crossCount = 0;
+    ranks.forEach((r, flow)=>{
+      const g = groups.get(r);
+      g.forEach((n, cross)=> pos.set(n.id, { flow, cross }));
+      crossCount = Math.max(crossCount, g.length);
+    });
+    return { pos, flowCount: ranks.length, crossCount };
+  }
+
+  // セルごとに配置と「流れ方向の数 / 交差方向の段数」を求める
+  const cellLayout = new Map();
   const shape = new Map();
   lanes.forEach(l=> phases.forEach(p=>{
-    const k = (cell.get(key(l.id, p.id)) || []).length;
-    const run = runLength(k);
-    shape.set(key(l.id, p.id), { run, runs: k ? Math.ceil(k / run) : 0 });
+    const k = key(l.id, p.id);
+    const cl = computeCellLayout(cell.get(k) || []);
+    cellLayout.set(k, cl);
+    shape.set(k, { run: Math.max(1, cl.flowCount), runs: cl.crossCount });
   }));
 
   // フェーズの幅 = そのフェーズでいちばん多く流れ方向に並ぶ数（レーンをまたいで揃える）
@@ -976,7 +1029,8 @@ function computeLayout(){
     return max;
   });
 
-  const mainStart = dir === 'LR' ? L.laneHeaderW : L.phaseHeaderH;
+  const headerMain = dir === 'LR' ? L.laneHeaderW : L.phaseHeaderH;
+  const mainStart = headerMain + leadPad;   // 先頭に開始●があれば、その分だけ流れ方向にずらす
   const crossStart = dir === 'LR'
     ? (hasPhaseHeader ? L.phaseHeaderH : 0)
     : (hasPhaseHeader ? L.laneHeaderW : 0);
@@ -988,7 +1042,7 @@ function computeLayout(){
     phaseBands.push({ phase:p, index:j, start:main, size });
     main += size + L.gapMain;
   });
-  const mainTotal = main - L.gapMain + L.gapMain / 2;
+  const mainTotal = main - L.gapMain + L.gapMain / 2 + trailPad;   // 末尾の終了●の分も確保
 
   const laneBands = [];
   let cross = crossStart;
@@ -1005,10 +1059,9 @@ function computeLayout(){
     const band = laneBands[i];
     phases.forEach((p, j)=>{
       const list = cell.get(key(l.id, p.id)) || [];
-      const { run } = shape.get(key(l.id, p.id));
-      list.forEach((n, t)=>{
-        const col = t % run;              // 流れ方向の位置
-        const row = Math.floor(t / run);  // 折り返した段
+      const cl = cellLayout.get(key(l.id, p.id));
+      list.forEach((n)=>{
+        const { flow: col, cross: row } = cl.pos.get(n.id);
         const mainPos  = phaseBands[j].start + col * (nodeMain + L.gapInner);
         const crossPos = band.start + L.gapCross + row * (nodeCross + L.gapCross);
         const slot = dir === 'LR'
@@ -1021,6 +1074,28 @@ function computeLayout(){
         boxes.push({ node:n, index: state.nodes.indexOf(n), ...box });
       });
     });
+  });
+
+  // 開始/終了の●を、接続先ノードの手前(左/上)・先(右/下)へ、交差軸を揃えて置く。
+  // ・開始●は接続先の左(LR)/上(TB)、終了●は右(LR)/下(TB)  … 仕様1・2
+  // ・交差軸(LRならy、TBならx)を接続先に合わせるので、矢印はまっすぐ引ける … 仕様3
+  const boxByNode = new Map(boxes.map(b=>[b.node, b]));
+  dotPlace.forEach((a, d)=>{
+    const ab = boxByNode.get(a);
+    if(!ab) return;   // 接続先がグリッドに無い（通常は起きない）
+    let x, y;
+    if(dir === 'LR'){
+      y = ab.y + (ab.h - DOT_SIZE)/2;
+      x = d.shape === 'startdot'
+        ? Math.max(headerMain, ab.x - DOT_SLOT)   // ヘッダーの帯には食い込ませない
+        : ab.x + ab.w + DOT_GAP;
+    }else{
+      x = ab.x + (ab.w - DOT_SIZE)/2;
+      y = d.shape === 'startdot'
+        ? Math.max(headerMain, ab.y - DOT_SLOT)
+        : ab.y + ab.h + DOT_GAP;
+    }
+    boxes.push({ node:d, index: state.nodes.indexOf(d), x, y, w:DOT_SIZE, h:DOT_SIZE });
   });
 
   const width  = dir === 'LR' ? mainTotal : crossTotal;
@@ -1059,9 +1134,11 @@ function shapeElement(b, shape, fill){
 }
 
 /* 折れ線で結ぶ。前後関係（流れ方向）に応じて経路を変える。 */
-function linkPath(a, b, dir){
+function linkPath(a, b, dir, seq){
   const ac = { x:a.x + a.w/2, y:a.y + a.h/2 };
   const bc = { x:b.x + b.w/2, y:b.y + b.h/2 };
+  // 回り込み経路を接続ごとに少しずつ離し、複数の後退線が完全に重ならないようにする（仕様4）
+  const jog = ((seq || 0) % 4) * 9;
   if(dir === 'LR'){
     if(b.x > a.x + a.w - 1){                    // 前進
       const sx = a.x + a.w, ex = b.x;
@@ -1076,7 +1153,7 @@ function linkPath(a, b, dir){
                mid:{ x:ac.x, y:(sy + ey)/2 } };
     }
     // 後退（差戻しなど）は下側を回り込む
-    const back = Math.max(a.y + a.h, b.y + b.h) + 22;
+    const back = Math.max(a.y + a.h, b.y + b.h) + 22 + jog;
     return { d:`M ${ac.x} ${a.y + a.h} V ${back} H ${bc.x} V ${b.y + b.h}`,
              tip:{ x:bc.x, y:b.y + b.h, dirn:'up' }, mid:{ x:(ac.x + bc.x)/2, y:back } };
   }
@@ -1093,7 +1170,7 @@ function linkPath(a, b, dir){
     return { d:`M ${sx} ${ac.y} H ${ex}`, tip:{ x:ex, y:ac.y, dirn: right ? 'right' : 'left' },
              mid:{ x:(sx + ex)/2, y:ac.y } };
   }
-  const back = Math.max(a.x + a.w, b.x + b.w) + 22;
+  const back = Math.max(a.x + a.w, b.x + b.w) + 22 + jog;
   return { d:`M ${a.x + a.w} ${ac.y} H ${back} V ${bc.y} H ${b.x + b.w}`,
            tip:{ x:b.x + b.w, y:bc.y, dirn:'left' }, mid:{ x:back, y:(ac.y + bc.y)/2 } };
 }
@@ -1195,7 +1272,7 @@ function drawSvg(){
   state.links.forEach((e, i)=>{
     const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
     if(!a || !b) return;
-    const p = linkPath(a, b, lay.dir);
+    const p = linkPath(a, b, lay.dir, i);
     const dash = e.style === 'dashed' ? ' stroke-dasharray="6 4"' : '';
     out.push(`<g>`);
     out.push(`<path class="sl-hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="14" data-pick="link" data-idx="${i}"></path>`);
@@ -1259,7 +1336,15 @@ function scheduleRender(){
   renderTimer = setTimeout(renderPreview, 120);
 }
 function regenerateCode(){
-  if(manualMode) return;
+  // これはフォーム（ビルダー）操作からのみ呼ばれる。コード欄への手入力は別経路で処理する。
+  // 直接編集モード中でもフォームの変更は必ず反映する。反映しないと、追加・削除しても
+  // コードも図も変わらず「操作できない」ように見えてしまう。GUIを操作した時点で
+  // GUI側を正とし、直接編集モードは解除してコードを作り直す。
+  if(manualMode){
+    manualMode = false;
+    document.getElementById('editToggle').checked = false;
+    document.getElementById('codeArea').readOnly = true;
+  }
   document.getElementById('codeArea').value = generateCode();
   scheduleRender();
 }
@@ -1322,8 +1407,8 @@ function renderBuilder(){
       <div class="card-title">方向</div>
       <div class="field">
         <select id="dirSelect" aria-label="方向">
-          <option value="LR">左から右 (LR)</option>
           <option value="TB">上から下 (TB)</option>
+          <option value="LR">左から右 (LR)</option>
         </select>
       </div>
     </div>
@@ -1416,7 +1501,6 @@ function renderBuilder(){
   document.getElementById('dirSelect').addEventListener('change', e=>{
     state.direction = e.target.value;
     regenerateCode();
-    if(manualMode) renderPreview();
   });
 
   document.getElementById('slTitle').addEventListener('input', e=>{
@@ -1567,14 +1651,9 @@ function resetNodeForm(){
 function createMarker(shape, counterpartId){
   const cp = state.nodes.find(n=>n.id === counterpartId);
   if(!cp) return null;
-  let phaseId = cp.phaseId;
-  const pi = state.phases.findIndex(p=>p.id === cp.phaseId);
-  if(pi >= 0){
-    const target = shape === 'startdot' ? pi - 1 : pi + 1;
-    if(target >= 0 && target < state.phases.length) phaseId = state.phases[target].id;
-  }
   const id = uniqueId(shape === 'startdot' ? 'start' : 'end', allIds());
-  state.nodes.push({ id, label:'', laneId: cp.laneId, phaseId, shape, color:'' });
+  // ●は接続先と同じレーン・同じフェーズに作る（描画時に接続先の手前/先へ揃えて置かれる）
+  state.nodes.push({ id, label:'', laneId: cp.laneId, phaseId: cp.phaseId, shape, color:'' });
   return id;
 }
 
