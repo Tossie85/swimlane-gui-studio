@@ -312,6 +312,30 @@
   .item-row .drag-handle{ cursor:grab; color:var(--text-soft); font-size:13px; line-height:1; user-select:none; flex:none; }
   .item-row .drag-handle:active{ cursor:grabbing; }
   .item-row.picked{ background:#FFF6DF; box-shadow: inset 0 0 0 2px var(--amber); }
+  /* ---------- 折りたたみグループ見出し（レーンごとに束ねる） ---------- */
+  .group-toolbar{ display:flex; gap:6px; }
+  .group-toolbar button{
+    background:#EEF3F8; border:1px solid #E1E8F0; color:var(--text-soft);
+    font-size:10.5px; padding:2px 9px; border-radius:5px; cursor:pointer; font-family:var(--font-sans);
+  }
+  .group-toolbar button:hover{ background:#E3F6FA; color:var(--cyan-dim); border-color:var(--cyan); }
+  .group-sec{ display:flex; flex-direction:column; gap:6px; }
+  .group-head{
+    display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;
+    padding:4px 8px; border-radius:6px;
+    background:#EDF6F9; border:1px solid #D5E7EC;
+    font-size:11px; color:var(--ink-800);
+  }
+  .group-head:hover{ background:#E1F1F5; }
+  .group-caret{ font-size:10px; color:var(--cyan-dim); width:10px; flex:none; text-align:center; }
+  .group-swatch{ display:inline-block; width:10px; height:10px; border-radius:3px; border:1px solid #999; flex:none; }
+  .group-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono); }
+  .group-count{
+    flex:none; font-family:var(--font-mono); font-size:10px; color:var(--text-soft);
+    background:#fff; border:1px solid #D5E7EC; border-radius:10px; padding:0 7px; min-width:20px; text-align:center;
+  }
+  .group-body{ display:flex; flex-direction:column; gap:6px; padding-left:10px; border-left:2px solid #E1EDF1; margin-left:4px; }
+  .group-sec.collapsed .group-body{ display:none; }
   .key-badge{
     display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.3px;
     padding:1px 5px; border-radius:3px; margin-right:4px; flex-shrink:0;
@@ -617,10 +641,97 @@ function flashBtn(id, text){
 
 /* 一覧の項目をドラッグ&ドロップで並べ替え可能にする汎用ヘルパー。
    isValidOrder を渡すと、成立しない並びになる移動を差し戻す。 */
+/* ============ 折りたたみグループ表示（共通） ============ */
+/* レーンごとに item-row を束ね、見出しで開閉できるようにする。
+   ・グループが1つも無いときは従来どおりの平坦表示（見出しを出さない）
+   ・各行に data-idx（配列内の実インデックス）を持たせ、makeSortable / selectFromPreview が
+     DOM 位置ではなく実インデックスで対象を特定できるようにする
+   collapsed は Set（id を入れると閉じる／既定の空集合＝全展開）。保存対象の state とは別に持つ。 */
+const groupCollapse = { node:new Set(), link:new Set() };
+const GROUP_UNGROUPED = ' ungrouped';
+function setSectionCollapsed(sec, isCollapsed){
+  const caret = sec.querySelector('.group-caret');
+  if(caret) caret.textContent = isCollapsed ? '▸' : '▾';
+  sec.classList.toggle('collapsed', isCollapsed);
+}
+function renderGroupedList(listEl, items, keyOf, groups, collapsed, rowFactory, ungroupedLabel){
+  listEl.innerHTML = '';
+  const groupById = new Map(groups.map(g=>[g.id, g]));
+  const buckets = new Map();
+  groups.forEach(g=> buckets.set(g.id, []));
+  buckets.set(GROUP_UNGROUPED, []);
+  items.forEach((item, idx)=>{
+    const k = keyOf(item);
+    const key = (k!=null && groupById.has(k)) ? k : GROUP_UNGROUPED;
+    buckets.get(key).push({ item, idx });
+  });
+  // 表示順: 宣言されたグループ順 → 未所属。中身が空のセクションは出さない
+  const order = [];
+  groups.forEach(g=>{ if(buckets.get(g.id).length) order.push(g.id); });
+  const groupCount = order.length;
+  if(buckets.get(GROUP_UNGROUPED).length) order.push(GROUP_UNGROUPED);
+
+  // グループが無ければ従来どおり平坦に並べる（見出しなし）
+  if(groupCount === 0){
+    items.forEach((item, idx)=>{
+      const row = rowFactory(item, idx);
+      row.dataset.idx = idx;
+      listEl.appendChild(row);
+    });
+    return;
+  }
+
+  // 全開/全たたみ 操作バー
+  const bar = document.createElement('div');
+  bar.className = 'group-toolbar';
+  bar.innerHTML = '<button type="button" data-act="expand">全て開く</button><button type="button" data-act="collapse">全てたたむ</button>';
+  bar.querySelector('[data-act="expand"]').addEventListener('click', ()=>{
+    collapsed.clear();
+    listEl.querySelectorAll('.group-sec').forEach(s=> setSectionCollapsed(s, false));
+  });
+  bar.querySelector('[data-act="collapse"]').addEventListener('click', ()=>{
+    order.forEach(k=> collapsed.add(k));
+    listEl.querySelectorAll('.group-sec').forEach(s=> setSectionCollapsed(s, true));
+  });
+  listEl.appendChild(bar);
+
+  order.forEach(key=>{
+    const entries = buckets.get(key);
+    const g = key===GROUP_UNGROUPED ? null : groupById.get(key);
+    const label = g ? `${g.id}: ${g.label}` : ungroupedLabel;
+    const isCol = collapsed.has(key);
+    const sec = document.createElement('div');
+    sec.className = 'group-sec' + (isCol ? ' collapsed' : '');
+    const head = document.createElement('div');
+    head.className = 'group-head';
+    const swatch = g && g.color
+      ? `<span class="group-swatch" style="background:${g.color};"></span>`
+      : '';
+    head.innerHTML = `<span class="group-caret">${isCol?'▸':'▾'}</span>${swatch}<span class="group-name">${label}</span><span class="group-count">${entries.length}</span>`;
+    const body = document.createElement('div');
+    body.className = 'group-body';
+    entries.forEach(({ item, idx })=>{
+      const row = rowFactory(item, idx);
+      row.dataset.idx = idx;
+      body.appendChild(row);
+    });
+    head.addEventListener('click', ()=>{
+      const next = !collapsed.has(key);
+      if(next) collapsed.add(key); else collapsed.delete(key);
+      setSectionCollapsed(sec, next);
+    });
+    sec.appendChild(head);
+    sec.appendChild(body);
+    listEl.appendChild(sec);
+  });
+}
+
 function makeSortable(listEl, arr, onReorder, isValidOrder){
-  const rows = [...listEl.children].filter(el=>el.classList.contains('item-row'));
+  const rows = [...listEl.querySelectorAll('.item-row')];
   let dragIdx = null;
-  rows.forEach((row, idx)=>{
+  rows.forEach((row, pos)=>{
+    // グループ表示では DOM 位置と配列インデックスがずれるため、data-idx があればそれを実インデックスとして使う
+    const idx = (row.dataset.idx !== undefined && row.dataset.idx !== '') ? parseInt(row.dataset.idx, 10) : pos;
     const handle = document.createElement('span');
     handle.className = 'drag-handle';
     handle.textContent = '⠿';
@@ -1173,8 +1284,12 @@ function selectFromPreview(kind, idx){
   if(!conf) return;
   conf.pick(idx);
   const listEl = document.getElementById(conf.listId);
-  const row = listEl ? [...listEl.querySelectorAll('.item-row')][idx] : null;
+  // グループ表示では DOM 順と配列インデックスがずれるので data-idx を優先。無ければ従来どおり位置で拾う
+  const row = listEl ? (listEl.querySelector(`.item-row[data-idx="${idx}"]`) || [...listEl.querySelectorAll('.item-row')][idx]) : null;
   if(row){
+    // 折りたたまれたグループ内なら開いてから見せる
+    const sec = row.closest('.group-sec');
+    if(sec && sec.classList.contains('collapsed')) setSectionCollapsed(sec, false);
     row.classList.add('picked');
     row.scrollIntoView({ block:'nearest', behavior:'smooth' });
   }
@@ -1557,26 +1672,30 @@ function refreshLists(){
   if(keepLane) laneSel.value = keepLane;
   if(keepPhase) phaseSel.value = keepPhase;
 
-  // 図形
-  nodeList.innerHTML = state.nodes.length ? '' : '<div class="empty-note">まだ図形がありません</div>';
-  state.nodes.forEach((n,i)=>{
-    const row = document.createElement('div');
-    row.className = 'item-row';
-    const lane = state.lanes.find(l=>l.id === n.laneId);
-    const badge = lane ? `<span class="key-badge">${esc(lane.label)}</span>` : '';
-    const sw = n.color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${esc(n.color)};border:1px solid #999;flex-shrink:0;"></span>` : '';
-    const shown = n.label || (n.shape === 'startdot' ? '● 開始' : n.shape === 'enddot' ? '◉ 終了' : '');
-    row.innerHTML = `${sw}${badge}<span class="item-text">${esc(n.id)}: ${esc(shown)}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
-    row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editNodeIdx = i; fillNodeForm(n); });
-    row.querySelector('.del-btn').addEventListener('click', ()=>{
-      const removed = state.nodes[i].id;
-      state.nodes.splice(i,1);
-      state.links = state.links.filter(e=>e.from !== removed && e.to !== removed);
-      if(state.editNodeIdx === i) resetNodeForm();
-      refreshLists(); regenerateCode();
-    });
-    nodeList.appendChild(row);
-  });
+  // 図形（所属レーンごとに束ねる。見出しがレーン名を示すので行のバッジは省く）
+  if(!state.nodes.length){
+    nodeList.innerHTML = '<div class="empty-note">まだ図形がありません</div>';
+  }else{
+    renderGroupedList(nodeList, state.nodes,
+      n=> n.laneId || null,
+      state.lanes, groupCollapse.node,
+      (n,i)=>{
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        const sw = n.color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${esc(n.color)};border:1px solid #999;flex-shrink:0;"></span>` : '';
+        const shown = n.label || (n.shape === 'startdot' ? '● 開始' : n.shape === 'enddot' ? '◉ 終了' : '');
+        row.innerHTML = `${sw}<span class="item-text">${esc(n.id)}: ${esc(shown)}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+        row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editNodeIdx = i; fillNodeForm(n); });
+        row.querySelector('.del-btn').addEventListener('click', ()=>{
+          const removed = state.nodes[i].id;
+          state.nodes.splice(i,1);
+          state.links = state.links.filter(e=>e.from !== removed && e.to !== removed);
+          if(state.editNodeIdx === i) resetNodeForm();
+          refreshLists(); regenerateCode();
+        });
+        return row;
+      }, '（レーンなし）');
+  }
   makeSortable(nodeList, state.nodes, ()=>{ resetNodeForm(); refreshLists(); regenerateCode(); });
 
   // 接続フォームの選択肢
@@ -1593,21 +1712,27 @@ function refreshLists(){
   if(keepFrom) fromSel.value = keepFrom;
   if(keepTo) toSel.value = keepTo;
 
-  // 接続
-  linkList.innerHTML = state.links.length ? '' : '<div class="empty-note">まだ接続がありません</div>';
-  state.links.forEach((e,i)=>{
-    const row = document.createElement('div');
-    row.className = 'item-row';
-    const arrow = e.style === 'dashed' ? '⇢' : '→';
-    row.innerHTML = `<span class="item-text">${esc(e.from)} ${arrow} ${esc(e.to)}${e.label ? ' [' + esc(e.label) + ']' : ''}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
-    row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editLinkIdx = i; fillLinkForm(e); });
-    row.querySelector('.del-btn').addEventListener('click', ()=>{
-      state.links.splice(i,1);
-      if(state.editLinkIdx === i) resetLinkForm();
-      refreshLists(); regenerateCode();
-    });
-    linkList.appendChild(row);
-  });
+  // 接続（起点図形の所属レーンごとに束ねる。●開始/終了など跨るものは「レーンなし」へ）
+  if(!state.links.length){
+    linkList.innerHTML = '<div class="empty-note">まだ接続がありません</div>';
+  }else{
+    renderGroupedList(linkList, state.links,
+      e=>{ const fn = state.nodes.find(n=>n.id === e.from); return fn ? (fn.laneId || null) : null; },
+      state.lanes, groupCollapse.link,
+      (e,i)=>{
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        const arrow = e.style === 'dashed' ? '⇢' : '→';
+        row.innerHTML = `<span class="item-text">${esc(e.from)} ${arrow} ${esc(e.to)}${e.label ? ' [' + esc(e.label) + ']' : ''}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+        row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editLinkIdx = i; fillLinkForm(e); });
+        row.querySelector('.del-btn').addEventListener('click', ()=>{
+          state.links.splice(i,1);
+          if(state.editLinkIdx === i) resetLinkForm();
+          refreshLists(); regenerateCode();
+        });
+        return row;
+      }, '（レーンなし）');
+  }
   makeSortable(linkList, state.links, ()=>{ resetLinkForm(); refreshLists(); regenerateCode(); });
 }
 
