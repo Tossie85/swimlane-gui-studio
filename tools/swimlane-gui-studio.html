@@ -584,9 +584,8 @@ const SHAPES = [
 /* 開始/終了の「●」。状態遷移図の [*] にあたるもので、他の図形より小さく描く */
 const DOT_SHAPES = ['startdot','enddot'];
 const DOT_SIZE = 26;
-/* ●と接続先ノードの間隔。フェーズ間の隙間(gapMain)に収まる大きさにして、
-   前のフェーズの図形と重ならないようにする（DOT_SIZE + DOT_GAP <= gapMain）。 */
-const DOT_GAP = 8;
+/* ●と接続先ノードの間隔。矢印の棒（矢じり約7px＋軸）がはっきり見える長さにする。 */
+const DOT_GAP = 20;
 const DOT_SLOT = DOT_SIZE + DOT_GAP;
 const isDot = (shape)=> DOT_SHAPES.includes(shape);
 const STAR = '[*]';
@@ -1203,10 +1202,23 @@ function computeLayout(){
     }
   }
 
+  // フェーズ内にラベル付きの接続があると、流れ方向の間隔を広げてラベルの前後に棒を出す（要求1.2）
+  const phaseGap = phases.map(p=>{
+    const has = state.links.some(e=>{
+      if(!e.label) return false;
+      const A = state.nodes.find(n=> n.id === e.from), B = state.nodes.find(n=> n.id === e.to);
+      if(!A || !B) return false;
+      const ap = state.phases.length ? (A.phaseId || phases[0].id) : '__all';
+      const bp = state.phases.length ? (B.phaseId || phases[0].id) : '__all';
+      return ap === p.id && bp === p.id;
+    });
+    return has ? Math.max(L.gapInner, 42) : L.gapInner;
+  });
+
   const phaseBands = [];
   let main = mainStart;
   phases.forEach((p, j)=>{
-    const size = phaseRuns[j] * nodeMain + (phaseRuns[j] - 1) * L.gapInner;
+    const size = phaseRuns[j] * nodeMain + (phaseRuns[j] - 1) * phaseGap[j];
     phaseBands.push({ phase:p, index:j, start:main, size });
     main += size + gapAfter[j];
   });
@@ -1229,7 +1241,7 @@ function computeLayout(){
       const list = cell.get(key(l.id, p.id)) || [];
       list.forEach((n)=>{
         const { flow: col, cross: row } = nodePos.get(n.id);
-        const mainPos  = phaseBands[j].start + col * (nodeMain + L.gapInner);
+        const mainPos  = phaseBands[j].start + col * (nodeMain + phaseGap[j]);
         const crossPos = band.start + L.gapCross + row * (nodeCross + L.gapCross);
         const slot = dir === 'LR'
           ? { x: mainPos, y: crossPos, w: L.nodeW, h: L.nodeH }
@@ -1291,6 +1303,37 @@ function computeLayout(){
       }
     });
     if(!moved) break;
+  }
+
+  // フェーズ帯を、そのフェーズのノード＋●を含む範囲まで広げる（要求2）。
+  // ●は接続先(anchor)のフェーズに属するとみなし、流れ方向(TBは縦・LRは横)の範囲を測る。
+  if(phases.length){
+    const phaseIdOf = (n)=> state.phases.length ? (n.phaseId || phases[0].id) : '__all';
+    const dotPhase = new Map();
+    dotPlace.forEach((anchor, d)=> dotPhase.set(d, phaseIdOf(anchor)));
+    const lo = phases.map(()=> Infinity), hi = phases.map(()=> -Infinity);
+    boxes.forEach(b=>{
+      const pid = isDot(b.node.shape) ? dotPhase.get(b.node) : phaseIdOf(b.node);
+      const j = phases.findIndex(p=> p.id === pid);
+      if(j < 0) return;
+      const s = dir === 'LR' ? b.x : b.y, e = dir === 'LR' ? b.x + b.w : b.y + b.h;
+      lo[j] = Math.min(lo[j], s); hi[j] = Math.max(hi[j], e);
+    });
+    // 前の帯の終端を覚えておき、重ならないように順に確定する（空フェーズは潰す）
+    let prevEnd = null;
+    phases.forEach((p, j)=>{
+      if(lo[j] === Infinity){                                   // 中身なし: 直前の終端に潰す
+        const s = prevEnd != null ? prevEnd : phaseBands[j].start;
+        phaseBands[j].start = s; phaseBands[j].size = 0;
+        return;
+      }
+      let s = lo[j] - 6, e = hi[j] + 6;
+      if(prevEnd != null) s = Math.max(s, (prevEnd + lo[j]) / 2);  // 直前とは中間で分ける
+      if(j === 0) s = Math.max(headerMain, s);
+      phaseBands[j].start = s;
+      phaseBands[j].size = Math.max(0, e - s);
+      prevEnd = e;
+    });
   }
 
   const width  = dir === 'LR' ? mainTotal : crossTotal;
