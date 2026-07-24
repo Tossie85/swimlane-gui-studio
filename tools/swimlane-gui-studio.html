@@ -970,11 +970,32 @@ function computeLayout(){
   const nodeMain  = dir === 'LR' ? L.nodeW : L.nodeH;
   const nodeCross = dir === 'LR' ? L.nodeH : L.nodeW;
 
+  // 各ノードから前向きに終了●へ到達できるか（開始→終了の本線を主列に置くのに使う。要求1）
+  const reachesEnd = new Map();
+  {
+    const fwd = new Map();
+    state.nodes.forEach(n=> fwd.set(n.id, []));
+    state.links.forEach(e=>{ if(fwd.has(e.from)) fwd.get(e.from).push(e.to); });
+    const endIds = new Set(state.nodes.filter(n=> n.shape === 'enddot').map(n=> n.id));
+    const canReach = (id, seen)=>{
+      if(reachesEnd.has(id)) return reachesEnd.get(id);
+      if(seen.has(id)) return false;
+      seen.add(id);
+      let r = endIds.has(id);
+      if(!r){ for(const v of (fwd.get(id) || [])){ if(canReach(v, seen)){ r = true; break; } } }
+      seen.delete(id);
+      if(!seen.size) reachesEnd.set(id, r);   // 確定値のみ記録（再帰途中の暫定値は残さない）
+      return r;
+    };
+    state.nodes.forEach(n=> canReach(n.id, new Set()));
+  }
+
   // セル内のノードを「フロー深さ(rank)」で並べる。
   //   ・rank = そのセル内で前につながる距離の最大（前がなければ0）
-  //   ・同じ rank のノードは交差方向に横並び（分岐の枝が並ぶ … LRは縦・TBは横。仕様5）
-  //   ・rank が進むと流れ方向に進む（直線的な連鎖は従来どおり流れ方向に伸びる）
-  // これで「分岐元と枝が同じセルにある」ときも、枝が別ノードの線上に重ならない（ルール3）。
+  //   ・独立したノード（同じセル内でつながっていない）は流れ方向に積む
+  //     （＝レーンに足したノードは上下(TB)/左右(LR)にマージンを空けて並ぶ。要求3）
+  //   ・同じ親を持つ枝だけ交差方向に横並び（LRは縦・TBは横。分岐が線を跨がない。仕様5/ルール3）
+  //   ・つながっている場合は必ず TO が FROM より後ろ(下/右)の流れ位置になる（要求2）
   function computeCellLayout(list){
     const ids = new Set(list.map(n=>n.id));
     const predOf = (id)=> state.links
@@ -993,41 +1014,163 @@ function computeLayout(){
     };
     list.forEach(n=> rankOf(n.id, new Set()));
     // rank ごとにまとめ、元の並び順を保つ
-    const groups = new Map();
-    list.forEach(n=>{ const r = rank.get(n.id); if(!groups.has(r)) groups.set(r, []); groups.get(r).push(n); });
-    const ranks = [...groups.keys()].sort((a,b)=>a-b);
+    const byRank = new Map();
+    list.forEach(n=>{ const r = rank.get(n.id); if(!byRank.has(r)) byRank.set(r, []); byRank.get(r).push(n); });
+    const ranks = [...byRank.keys()].sort((a,b)=>a-b);
+    // 各 rank を「流れスロット」に割り振る。
+    //   ・親を持たない（独立/起点）ノードはそれぞれ単独スロット＝流れ方向に積む
+    //   ・同じ親集合の枝はひとつのスロットにまとめ、交差方向に横並びにする
     const pos = new Map();
-    let crossCount = 0;
-    ranks.forEach((r, flow)=>{
-      const g = groups.get(r);
-      g.forEach((n, cross)=> pos.set(n.id, { flow, cross }));
-      crossCount = Math.max(crossCount, g.length);
+    let flow = 0, crossCount = 0;
+    ranks.forEach(r=>{
+      const slots = [];              // 各要素が1つの流れスロット（中身は交差方向に並ぶ）
+      const byParent = new Map();    // 親集合キー -> 交差方向に並べる枝
+      byRank.get(r).forEach(n=>{
+        const ps = predOf(n.id);
+        if(ps.length === 0){
+          slots.push([n]);           // 独立/起点は単独スロット
+        }else{
+          const pk = ps.slice().sort().join(',');
+          if(!byParent.has(pk)){ const arr = []; byParent.set(pk, arr); slots.push(arr); }
+          byParent.get(pk).push(n);
+        }
+      });
+      slots.forEach(sg=>{
+        // 分岐の枝は、終了●へ到達できる本線を cross0 に置く。
+        // こうすると開始の真下(TB)/右(LR)に終了が並ぶ（要求1）。到達可否が同じなら元の順を保つ。
+        if(sg.length > 1) sg.sort((p, q)=> (reachesEnd.get(q.id) ? 1 : 0) - (reachesEnd.get(p.id) ? 1 : 0));
+        sg.forEach((n, cross)=> pos.set(n.id, { flow, cross }));
+        crossCount = Math.max(crossCount, sg.length);
+        flow++;
+      });
     });
-    return { pos, flowCount: ranks.length, crossCount };
+    return { pos, flowCount: flow, crossCount };
   }
 
-  // セルごとに配置と「流れ方向の数 / 交差方向の段数」を求める
-  const cellLayout = new Map();
-  const shape = new Map();
-  lanes.forEach(l=> phases.forEach(p=>{
-    const k = key(l.id, p.id);
-    const cl = computeCellLayout(cell.get(k) || []);
-    cellLayout.set(k, cl);
-    shape.set(k, { run: Math.max(1, cl.flowCount), runs: cl.crossCount });
-  }));
+  // --- 連結成分（フロー）を求める。開始●〜終了◉ の一続きを1グループとして扱う ---
+  const compId = new Map();
+  {
+    const adj = new Map();
+    state.nodes.forEach(n=> adj.set(n.id, []));
+    state.links.forEach(e=>{ if(adj.has(e.from) && adj.has(e.to)){ adj.get(e.from).push(e.to); adj.get(e.to).push(e.from); } });
+    let c = 0;
+    state.nodes.forEach(n=>{
+      if(compId.has(n.id)) return;
+      const st = [n.id]; compId.set(n.id, c);
+      while(st.length){ const u = st.pop(); adj.get(u).forEach(v=>{ if(!compId.has(v)){ compId.set(v, c); st.push(v); } }); }
+      c++;
+    });
+  }
+  const compSize = new Map();
+  state.nodes.forEach(n=>{ const c = compId.get(n.id); compSize.set(c, (compSize.get(c) || 0) + 1); });
+  // 2ノード以上つながっていれば「フロー」。単独ノードは 'misc' に集めて流れ方向に積む（要求3）
+  const MISC = 'misc';
+  const bucketKeyOf = (n)=> (compSize.get(compId.get(n.id)) >= 2) ? ('g' + compId.get(n.id)) : MISC;
+
+  // レーンごとに、フロー(連結成分)を交差方向へ並列に割り当てる（開始〜終了を1グループに）。
+  //   ・各フロー=1トラック。レーン内の全フェーズで同じ交差位置を使うので、TBは横並び・LRは縦並びになる。
+  //   ・トラックの中はこれまで通り rank(流れ) と 枝(交差) で並べる。
+  const nodePos = new Map();          // node.id -> { flow, cross }
+  const cellFlowCount = new Map();    // key(l,p) -> そのセルの流れ方向スロット数
+  const laneCross = new Map();        // laneId -> 交差方向の列数
+  lanes.forEach(l=>{
+    // このレーンに現れるバケツ（フロー/misc）を初出順に並べる
+    const order = []; const seen = new Set();
+    phases.forEach(p=> (cell.get(key(l.id, p.id)) || []).forEach(n=>{
+      const bk = bucketKeyOf(n);
+      if(!seen.has(bk)){ seen.add(bk); order.push(bk); }
+    }));
+    // 各バケツのセルごとの局所レイアウトと、レーン内での交差幅・占有フェーズを求める
+    const local = new Map();    // bk -> Map(phaseId -> cl)
+    const widthOf = new Map();  // bk -> 交差列数（レーン内最大）
+    const phasesOf = new Map(); // bk -> このバケツがノードを持つフェーズid配列
+    order.forEach(bk=>{
+      const byPhase = new Map(); let w = 1; const ph = [];
+      phases.forEach(p=>{
+        const sub = (cell.get(key(l.id, p.id)) || []).filter(n=> bucketKeyOf(n) === bk);
+        const cl = computeCellLayout(sub);
+        byPhase.set(p.id, cl);
+        if(sub.length) ph.push(p.id);
+        w = Math.max(w, cl.crossCount);
+      });
+      local.set(bk, byPhase); widthOf.set(bk, w); phasesOf.set(bk, ph);
+    });
+    // 交差列の割り当て。フェーズが重ならないバケツ同士は同じ列を共有してよい（要求: 別フェーズなら同位置OK）。
+    // フェーズ占有が重なるバケツだけ別の列に置く（区間ごとの詰め込み＝first-fit）。
+    const occ = new Map();   // phaseId -> Set(占有中の列index)
+    phases.forEach(p=> occ.set(p.id, new Set()));
+    const baseOf = new Map();
+    let laneCols = 0;
+    order.forEach(bk=>{
+      const w = widthOf.get(bk), ph = phasesOf.get(bk);
+      let base = 0;
+      for(;;){
+        let ok = true;
+        for(const pid of ph){ const s = occ.get(pid);
+          for(let c = base; c < base + w; c++){ if(s.has(c)){ ok = false; break; } }
+          if(!ok) break;
+        }
+        if(ok) break;
+        base++;
+      }
+      ph.forEach(pid=>{ const s = occ.get(pid); for(let c = base; c < base + w; c++) s.add(c); });
+      baseOf.set(bk, base);
+      laneCols = Math.max(laneCols, base + w);
+    });
+    laneCross.set(l.id, Math.max(1, laneCols));
+    // 各ノードの最終 (flow, cross) と、セルの流れ方向スロット数を確定
+    phases.forEach(p=>{
+      let flowMax = 0;
+      order.forEach(bk=>{
+        const cl = local.get(bk).get(p.id);
+        flowMax = Math.max(flowMax, cl.flowCount);
+        cl.pos.forEach((pc, id)=> nodePos.set(id, { flow: pc.flow, cross: baseOf.get(bk) + pc.cross }));
+      });
+      cellFlowCount.set(key(l.id, p.id), flowMax);
+    });
+  });
+
+  // 同一フェーズで「後ろのレーン→前のレーン」（TBなら右→左）へ渡るエッジは、TOを1つ後ろの
+  // 流れ位置へ下げる。こうすると FROM の下(TB)/右(LR)から出て TO の上(TB)/左(LR)へ入る、
+  // 自然な下向き（右向き）フローになり、横に戻る線を避けられる。
+  {
+    const laneIdx = new Map(lanes.map((l, i)=> [l.id, i]));
+    const phaseOf = (n)=> state.phases.length ? (n.phaseId || phases[0].id) : '__all';
+    const laneOf  = (n)=> n.laneId || (lanes[0] && lanes[0].id);
+    const occupied = (ck, flow, cross, exceptId)=>
+      (cell.get(ck) || []).some(n=>{ if(n.id === exceptId) return false; const p = nodePos.get(n.id); return p && p.flow === flow && p.cross === cross; });
+    let changed = true, guard = 0;
+    while(changed && guard++ < 30){
+      changed = false;
+      state.links.forEach(e=>{
+        const A = state.nodes.find(n=> n.id === e.from), B = state.nodes.find(n=> n.id === e.to);
+        if(!A || !B || isDot(A.shape) || isDot(B.shape)) return;
+        if(phaseOf(A) !== phaseOf(B) || laneOf(A) === laneOf(B)) return;   // 同一フェーズ・別レーンのみ
+        if(laneIdx.get(laneOf(B)) >= laneIdx.get(laneOf(A))) return;        // Bが前(左/上)のレーンのときだけ
+        const pa = nodePos.get(A.id), pb = nodePos.get(B.id);
+        if(!pa || !pb || pb.flow > pa.flow) return;
+        let f = pa.flow + 1;
+        while(occupied(key(laneOf(B), phaseOf(B)), f, pb.cross, B.id)) f++;
+        nodePos.set(B.id, { flow: f, cross: pb.cross });
+        changed = true;
+      });
+    }
+    // 下げた分、各セルの流れ数を数え直す
+    lanes.forEach(l=> phases.forEach(p=>{
+      let mx = 0;
+      (cell.get(key(l.id, p.id)) || []).forEach(n=>{ const pp = nodePos.get(n.id); if(pp) mx = Math.max(mx, pp.flow + 1); });
+      cellFlowCount.set(key(l.id, p.id), mx);
+    }));
+  }
 
   // フェーズの幅 = そのフェーズでいちばん多く流れ方向に並ぶ数（レーンをまたいで揃える）
   const phaseRuns = phases.map(p=>{
     let max = 1;
-    lanes.forEach(l=> max = Math.max(max, shape.get(key(l.id, p.id)).run));
+    lanes.forEach(l=> max = Math.max(max, cellFlowCount.get(key(l.id, p.id)) || 0));
     return max;
   });
-  // レーンの厚み = そのレーンでいちばん段数が多いセル
-  const laneRuns = lanes.map(l=>{
-    let max = 1;
-    phases.forEach(p=> max = Math.max(max, shape.get(key(l.id, p.id)).runs));
-    return max;
-  });
+  // レーンの厚み = そのレーンの交差方向の列数（並列フローの分だけ広がる）
+  const laneRuns = lanes.map(l=> Math.max(1, laneCross.get(l.id) || 0));
 
   const headerMain = dir === 'LR' ? L.laneHeaderW : L.phaseHeaderH;
   const mainStart = headerMain + leadPad;   // 先頭に開始●があれば、その分だけ流れ方向にずらす
@@ -1035,14 +1178,39 @@ function computeLayout(){
     ? (hasPhaseHeader ? L.phaseHeaderH : 0)
     : (hasPhaseHeader ? L.laneHeaderW : 0);
 
+  // 上フェーズの終了●と下フェーズの開始●が同じ列に来る境界は、●2つが縦に並ぶ隙間を空ける。
+  // （同じ列を共有したまま、横へずらさず上下に離して衝突を避ける）
+  const gapAfter = phases.map(()=> L.gapMain);
+  {
+    const recOf = (dot)=>{
+      const anchor = dotPlace.get(dot);
+      const pos = anchor && nodePos.get(anchor.id);
+      if(!pos) return null;
+      const laneId = anchor.laneId || (lanes[0] && lanes[0].id);
+      const phaseId = state.phases.length ? (anchor.phaseId || phases[0].id) : '__all';
+      return { pj: phases.findIndex(p=> p.id === phaseId), laneId, cross: pos.cross };
+    };
+    const ends = [], starts = [];
+    dotPlace.forEach((anchor, dot)=>{
+      const r = recOf(dot); if(!r) return;
+      (dot.shape === 'enddot' ? ends : starts).push(r);
+    });
+    const need = DOT_SLOT * 2 + 14;   // ●2つ分＋間の隙間
+    for(let j = 0; j < phases.length - 1; j++){
+      const collide = ends.some(e=> e.pj === j &&
+        starts.some(s=> s.pj === j + 1 && s.laneId === e.laneId && s.cross === e.cross));
+      if(collide) gapAfter[j] = Math.max(L.gapMain, need);
+    }
+  }
+
   const phaseBands = [];
   let main = mainStart;
   phases.forEach((p, j)=>{
     const size = phaseRuns[j] * nodeMain + (phaseRuns[j] - 1) * L.gapInner;
     phaseBands.push({ phase:p, index:j, start:main, size });
-    main += size + L.gapMain;
+    main += size + gapAfter[j];
   });
-  const mainTotal = main - L.gapMain + L.gapMain / 2 + trailPad;   // 末尾の終了●の分も確保
+  const mainTotal = main - L.gapMain + L.gapMain / 2 + trailPad;   // 末尾の終了●の分も確保（最終境界は既定gap）
 
   const laneBands = [];
   let cross = crossStart;
@@ -1059,9 +1227,8 @@ function computeLayout(){
     const band = laneBands[i];
     phases.forEach((p, j)=>{
       const list = cell.get(key(l.id, p.id)) || [];
-      const cl = cellLayout.get(key(l.id, p.id));
       list.forEach((n)=>{
-        const { flow: col, cross: row } = cl.pos.get(n.id);
+        const { flow: col, cross: row } = nodePos.get(n.id);
         const mainPos  = phaseBands[j].start + col * (nodeMain + L.gapInner);
         const crossPos = band.start + L.gapCross + row * (nodeCross + L.gapCross);
         const slot = dir === 'LR'
@@ -1079,7 +1246,9 @@ function computeLayout(){
   // 開始/終了の●を、接続先ノードの手前(左/上)・先(右/下)へ、交差軸を揃えて置く。
   // ・開始●は接続先の左(LR)/上(TB)、終了●は右(LR)/下(TB)  … 仕様1・2
   // ・交差軸(LRならy、TBならx)を接続先に合わせるので、矢印はまっすぐ引ける … 仕様3
+  const gridBoxes = boxes.slice();   // ●を足す前の図形だけ（重なり判定に使う）
   const boxByNode = new Map(boxes.map(b=>[b.node, b]));
+  const dotBoxes = [];
   dotPlace.forEach((a, d)=>{
     const ab = boxByNode.get(a);
     if(!ab) return;   // 接続先がグリッドに無い（通常は起きない）
@@ -1095,8 +1264,34 @@ function computeLayout(){
         ? Math.max(headerMain, ab.y - DOT_SLOT)
         : ab.y + ab.h + DOT_GAP;
     }
-    boxes.push({ node:d, index: state.nodes.indexOf(d), x, y, w:DOT_SIZE, h:DOT_SIZE });
+    const db = { node:d, index: state.nodes.indexOf(d), x, y, w:DOT_SIZE, h:DOT_SIZE };
+    boxes.push(db); dotBoxes.push(db);
   });
+
+  // ●が図形や他の●と重なるケース（別フェーズのフローが同じ列を共有する等）は、
+  // 交差軸方向へずらして重なりを消す。図形はグリッドで重ならないので、動かすのは●だけ。
+  // （要求: ノードは重ねない／別フェーズの開始・終了●が重ならないようにする）
+  const overlap = (a,b)=> Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x) > 0
+                        && Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y) > 0;
+  for(let pass = 0; pass < 6; pass++){
+    let moved = false;
+    dotBoxes.forEach(db=>{
+      const others = gridBoxes.concat(dotBoxes.filter(o=> o !== db));
+      for(let guard = 0; guard < 8; guard++){
+        const hit = others.find(o=> overlap(db, o));
+        if(!hit) break;
+        if(dir === 'LR'){   // 交差軸=y。●の中心が相手中心より上なら上へ、そうでなければ下へ逃がす
+          const up = (db.y + db.h/2) <= (hit.y + hit.h/2);
+          db.y = up ? hit.y - db.h - 4 : hit.y + hit.h + 4;
+        }else{              // 交差軸=x
+          const left = (db.x + db.w/2) <= (hit.x + hit.w/2);
+          db.x = left ? hit.x - db.w - 4 : hit.x + hit.w + 4;
+        }
+        moved = true;
+      }
+    });
+    if(!moved) break;
+  }
 
   const width  = dir === 'LR' ? mainTotal : crossTotal;
   const height = dir === 'LR' ? crossTotal : mainTotal;
@@ -1147,10 +1342,14 @@ function linkPath(a, b, dir, seq){
                mid:{ x:mx, y:(ac.y + bc.y)/2 } };
     }
     if(Math.abs(a.x - b.x) < 1){                // 同じフェーズ（レーン間）
-      const down = bc.y > ac.y;
-      const sy = down ? a.y + a.h : a.y, ey = down ? b.y : b.y + b.h;
-      return { d:`M ${ac.x} ${sy} V ${ey}`, tip:{ x:ac.x, y:ey, dirn: down ? 'down' : 'up' },
-               mid:{ x:ac.x, y:(sy + ey)/2 } };
+      if(bc.y > ac.y){                          // 下のレーンへ: TOの上辺へ入る（要求2）
+        const sy = a.y + a.h, ey = b.y;
+        return { d:`M ${ac.x} ${sy} V ${ey}`, tip:{ x:ac.x, y:ey, dirn:'down' }, mid:{ x:ac.x, y:(sy + ey)/2 } };
+      }
+      // 上のレーンへ戻る: 上（相手の側）へ出て左を回し、TOの左辺へ入れる（下辺から入れない。要求2）
+      const leftX = Math.min(a.x, b.x) - 22;
+      return { d:`M ${ac.x} ${a.y} V ${a.y - 18} H ${leftX} V ${bc.y} H ${b.x}`, tip:{ x:b.x, y:bc.y, dirn:'right' },
+               mid:{ x:leftX, y:(ac.y + bc.y)/2 } };
     }
     // 後退（差戻しなど）は下側を回り込む
     const back = Math.max(a.y + a.h, b.y + b.h) + 22 + jog;
@@ -1165,10 +1364,14 @@ function linkPath(a, b, dir, seq){
              mid:{ x:(ac.x + bc.x)/2, y:my } };
   }
   if(Math.abs(a.y - b.y) < 1){
-    const right = bc.x > ac.x;
-    const sx = right ? a.x + a.w : a.x, ex = right ? b.x : b.x + b.w;
-    return { d:`M ${sx} ${ac.y} H ${ex}`, tip:{ x:ex, y:ac.y, dirn: right ? 'right' : 'left' },
-             mid:{ x:(sx + ex)/2, y:ac.y } };
+    if(bc.x > ac.x){                            // 右のレーンへ: TOの左辺へ入る（要求2）
+      const sx = a.x + a.w, ex = b.x;
+      return { d:`M ${sx} ${ac.y} H ${ex}`, tip:{ x:ex, y:ac.y, dirn:'right' }, mid:{ x:(sx + ex)/2, y:ac.y } };
+    }
+    // 左のレーンへ戻る: 左（相手の側）へ出て上を回し、TOの上辺へ入れる（右辺から入れない。要求2）
+    const topY = Math.min(a.y, b.y) - 22;
+    return { d:`M ${a.x} ${ac.y} H ${a.x - 18} V ${topY} H ${bc.x} V ${b.y}`, tip:{ x:bc.x, y:b.y, dirn:'down' },
+             mid:{ x:(a.x - 18 + bc.x)/2, y:topY } };
   }
   const back = Math.max(a.x + a.w, b.x + b.w) + 22 + jog;
   return { d:`M ${a.x + a.w} ${ac.y} H ${back} V ${bc.y} H ${b.x + b.w}`,
@@ -1185,6 +1388,93 @@ function arrowHead(tip){
     up:    `${x},${y} ${x-s*0.62},${y+s} ${x+s*0.62},${y+s}`,
   }[dirn];
   return `<polygon class="sl-arrow" points="${pts}" fill="#42506B"></polygon>`;
+}
+
+/* ---- エッジ経路の補助（分岐の角出し・ノード回避） ---- */
+/* 直交線分(水平/垂直)が矩形を貫くか。端で触れる程度は許容し、明確に貫くものだけ true。 */
+function segHitsBox(x1, y1, x2, y2, box){
+  const m = 2, bx0 = box.x + m, bx1 = box.x + box.w - m, by0 = box.y + m, by1 = box.y + box.h - m;
+  if(x1 === x2){
+    if(x1 <= bx0 || x1 >= bx1) return false;
+    const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
+    return hi > by0 && lo < by1;
+  }
+  if(y1 === y2){
+    if(y1 <= by0 || y1 >= by1) return false;
+    const lo = Math.min(x1, x2), hi = Math.max(x1, x2);
+    return hi > bx0 && lo < bx1;
+  }
+  return false;
+}
+/* "M x y (H x | V y)*" 形式の経路を線分に分け、いずれかのノードを貫くか調べる。 */
+function pathHitsBoxes(d, boxes){
+  const t = d.split(/\s+/);
+  let x = 0, y = 0, px = 0, py = 0;
+  for(let i = 0; i < t.length; i++){
+    const c = t[i];
+    if(c === 'M'){ x = +t[++i]; y = +t[++i]; px = x; py = y; }
+    else if(c === 'H'){ px = x; x = +t[++i]; if(boxes.some(b=> segHitsBox(px, y, x, y, b))) return true; }
+    else if(c === 'V'){ py = y; y = +t[++i]; if(boxes.some(b=> segHitsBox(x, py, x, y, b))) return true; }
+  }
+  return false;
+}
+/* 分岐(ひし形)の指定した角から線を出す経路（要求4）。 */
+function cornerRoute(a, b, dir, corner){
+  const acx = a.x + a.w/2, acy = a.y + a.h/2, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
+  if(dir === 'TB'){
+    if(corner === 'bottom'){
+      const sy = a.y + a.h, ey = b.y, my = (sy + ey) / 2;
+      return { d:`M ${acx} ${sy} V ${my} H ${bcx} V ${ey}`, tip:{ x:bcx, y:ey, dirn:'down' }, mid:{ x:(acx+bcx)/2, y:my } };
+    }
+    // 左右の角: 横へ出てから相手の上辺へ入れる（TOは上から接続）。
+    // 相手が明確に横にあれば まっすぐ横→下。真下寄りなら 横のチャネルを下ってから中心へ戻る。
+    const right = corner === 'right';
+    const sx = right ? a.x + a.w : a.x;
+    const offset = right ? (bcx - acx) : (acx - bcx);
+    if(offset > a.w / 2){
+      return { d:`M ${sx} ${acy} H ${bcx} V ${b.y}`, tip:{ x:bcx, y:b.y, dirn:'down' }, mid:{ x:(sx + bcx)/2, y:acy } };
+    }
+    const chx = right ? sx + 18 : sx - 18;
+    return { d:`M ${sx} ${acy} H ${chx} V ${b.y - 12} H ${bcx} V ${b.y}`, tip:{ x:bcx, y:b.y, dirn:'down' }, mid:{ x:chx, y:(acy + b.y)/2 } };
+  }
+  if(corner === 'right'){          // LR の前進はまっすぐ右へ（TOの左辺へ入る）
+    const sx = a.x + a.w, ex = b.x, mx = (sx + ex) / 2;
+    return { d:`M ${sx} ${acy} H ${mx} V ${bcy} H ${ex}`, tip:{ x:ex, y:bcy, dirn:'right' }, mid:{ x:mx, y:(acy+bcy)/2 } };
+  }
+  // 上下の角(LR): 縦へ出てから相手の左辺へ入れる（TOは左から接続）。
+  const bottom = corner === 'bottom';
+  const sy = bottom ? a.y + a.h : a.y;
+  const offset = bottom ? (bcy - acy) : (acy - bcy);
+  if(offset > a.h / 2){
+    return { d:`M ${acx} ${sy} V ${bcy} H ${b.x}`, tip:{ x:b.x, y:bcy, dirn:'right' }, mid:{ x:acx, y:(sy + bcy)/2 } };
+  }
+  const chy = bottom ? sy + 18 : sy - 18;
+  return { d:`M ${acx} ${sy} V ${chy} H ${b.x - 12} V ${bcy} H ${b.x}`, tip:{ x:b.x, y:bcy, dirn:'right' }, mid:{ x:(acx + b.x)/2, y:chy } };
+}
+/* ノードを貫く経路を、横のチャネルに逃がして迂回する（要求3）。避けられなければ null。 */
+function detourRoute(a, b, dir, boxes){
+  const acx = a.x + a.w/2, acy = a.y + a.h/2, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
+  const pad = 20;
+  if(dir === 'TB'){
+    const sy = a.y + a.h, band = boxes.filter(o=> o.y < b.y && o.y + o.h > sy);
+    const rx = Math.max(a.x + a.w, b.x + b.w, ...band.map(o=> o.x + o.w)) + pad;
+    const lx = Math.min(a.x, b.x, ...band.map(o=> o.x)) - pad;
+    for(const chx of [rx, lx]){
+      const enterR = chx > bcx, ex = enterR ? b.x + b.w : b.x;
+      const d = `M ${acx} ${sy} V ${sy + 14} H ${chx} V ${bcy} H ${ex}`;
+      if(!pathHitsBoxes(d, boxes)) return { d, tip:{ x:ex, y:bcy, dirn: enterR ? 'left' : 'right' }, mid:{ x:chx, y:(sy + bcy)/2 } };
+    }
+  }else{
+    const sx = a.x + a.w, band = boxes.filter(o=> o.x < b.x && o.x + o.w > sx);
+    const by = Math.max(a.y + a.h, b.y + b.h, ...band.map(o=> o.y + o.h)) + pad;
+    const ty = Math.min(a.y, b.y, ...band.map(o=> o.y)) - pad;
+    for(const chy of [by, ty]){
+      const enterB = chy > bcy, ey = enterB ? b.y + b.h : b.y;
+      const d = `M ${sx} ${acy} H ${sx + 14} V ${chy} H ${bcx} V ${ey}`;
+      if(!pathHitsBoxes(d, boxes)) return { d, tip:{ x:bcx, y:ey, dirn: enterB ? 'up' : 'down' }, mid:{ x:(sx + bcx)/2, y:chy } };
+    }
+  }
+  return null;
 }
 
 /* 図形内のラベルを折り返して <tspan> にする（SVGは自動折り返ししないため） */
@@ -1268,11 +1558,43 @@ function drawSvg(){
     });
   }
 
+  // 分岐(ひし形)の出力を別々の角から出す（要求4）。前進する出力が2〜3本のときだけ割り当てる。
+  const cornerMap = new Map();   // link index -> 角
+  {
+    const bySrc = new Map();
+    state.links.forEach((e, i)=>{
+      const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
+      if(!a || !b || a.node.shape !== 'decision') return;
+      const fwd = lay.dir === 'TB' ? (b.y > a.y + a.h - 1) : (b.x > a.x + a.w - 1);
+      if(!fwd) return;
+      if(!bySrc.has(e.from)) bySrc.set(e.from, []);
+      bySrc.get(e.from).push({ i, a, b });
+    });
+    const CORN = lay.dir === 'TB' ? ['bottom', 'right', 'left'] : ['right', 'bottom', 'top'];
+    bySrc.forEach(list=>{
+      if(list.length < 2 || list.length > 3) return;   // 3つ以内のときだけ角出し（4つ以上は既定のまま）
+      list.sort((p, q)=>{
+        const pf = lay.dir === 'TB' ? p.b.y : p.b.x, qf = lay.dir === 'TB' ? q.b.y : q.b.x;
+        if(pf !== qf) return pf - qf;
+        const pc = lay.dir === 'TB' ? p.b.x : p.b.y, qc = lay.dir === 'TB' ? q.b.x : q.b.y;
+        return pc - qc;
+      });
+      list.forEach((it, k)=> cornerMap.set(it.i, CORN[k]));
+    });
+  }
+
   // 接続（図形より先に描いて背面へ）
   state.links.forEach((e, i)=>{
     const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
     if(!a || !b) return;
-    const p = linkPath(a, b, lay.dir, i);
+    const corner = cornerMap.get(i);
+    let p = corner ? cornerRoute(a, b, lay.dir, corner) : linkPath(a, b, lay.dir, i);
+    // 要求3: ノードを貫くなら、横のチャネルへ逃がして迂回する
+    const obst = lay.boxes.filter(x=> x.node.id !== e.from && x.node.id !== e.to);
+    if(pathHitsBoxes(p.d, obst)){
+      const dp = detourRoute(a, b, lay.dir, obst);
+      if(dp) p = dp;
+    }
     const dash = e.style === 'dashed' ? ' stroke-dasharray="6 4"' : '';
     out.push(`<g>`);
     out.push(`<path class="sl-hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="14" data-pick="link" data-idx="${i}"></path>`);
@@ -1646,8 +1968,8 @@ function resetNodeForm(){
 }
 
 /* ---- 接続 ---- */
-/* [*] が選ばれたら、相手側と同じレーンに開始●／終了◉ を実体として作る。
-   フェーズがあるときは1つ手前／1つ先の列に置き、以後は普通の図形として動かせる。 */
+/* [*] が選ばれたら、相手側と同じレーン・同じフェーズに開始●／終了◉ を実体として作る。
+   ●は描画時に接続先の手前/先へ揃えて置かれ、以後は普通の図形として動かせる。 */
 function createMarker(shape, counterpartId){
   const cp = state.nodes.find(n=>n.id === counterpartId);
   if(!cp) return null;
@@ -1655,6 +1977,20 @@ function createMarker(shape, counterpartId){
   // ●は接続先と同じレーン・同じフェーズに作る（描画時に接続先の手前/先へ揃えて置かれる）
   state.nodes.push({ id, label:'', laneId: cp.laneId, phaseId: cp.phaseId, shape, color:'' });
   return id;
+}
+
+/* 接続 from→to を足したとき、同じレーン・同じフェーズに居るなら to を from の後ろへ並べ替える。
+   これで to は必ず from より後ろ(下/右)の流れ位置になる（要求2）。フェーズ自体は変更しない。 */
+function orderToAfterFrom(fromId, toId){
+  if(fromId === toId) return;
+  const f = state.nodes.find(n=>n.id === fromId);
+  const t = state.nodes.find(n=>n.id === toId);
+  if(!f || !t) return;
+  if((f.laneId || '') !== (t.laneId || '') || (f.phaseId || '') !== (t.phaseId || '')) return;
+  const ti = state.nodes.indexOf(t), fi = state.nodes.indexOf(f);
+  if(ti > fi) return;               // すでに from より後ろにある
+  state.nodes.splice(ti, 1);
+  state.nodes.splice(state.nodes.indexOf(f) + 1, 0, t);
 }
 
 function submitLink(){
@@ -1672,6 +2008,7 @@ function submitLink(){
   }else{
     state.links.push({ from, to, label, style });
   }
+  orderToAfterFrom(from, to);
   resetLinkForm(); refreshLists(); regenerateCode();
 }
 function fillLinkForm(e){
