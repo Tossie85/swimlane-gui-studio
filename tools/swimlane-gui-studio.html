@@ -1399,7 +1399,26 @@ function linkPath(a, b, dir, jogIdx, ctx){
   const jog = (jogIdx || 0) * 8;
   const allowFarTo = !!(ctx && ctx.allowFarTo);
   if(dir === 'LR'){
-    if(b.x > a.x + a.w - 1){                    // 前進
+    // 別レーンをまたぐ接続（前進・後退どちらも）は、レーンとレーンの間の隙間
+    // （ノードが絶対に無い帯）を通って短く行き来する。同じ列（同フェーズ）はこの後で個別に扱う。
+    if(ctx && ctx.gapCross != null && Math.abs(a.x - b.x) >= 1){
+      // 同じ隙間を通る他の辺と重ならないよう、隙間内での通り道も少しずつずらす。
+      const gyJog = jogIdx ? Math.ceil(jogIdx / 2) * 4 * (jogIdx % 2 ? 1 : -1) : 0;
+      const gy = ctx.gapCross + gyJog;
+      const clearX = b.x - 18 - jog;
+      if(b.x > a.x + a.w - 1){
+        // 前進: FROMの右辺（最優先）から出て、隙間を経由してTOの左辺へ入れる
+        const sx = a.x + a.w, nearX = sx + 14 + jog;
+        const d = `M ${sx} ${ac.y} H ${nearX} V ${gy} H ${clearX} V ${bc.y} H ${b.x}`;
+        return { d, tip:{ x:b.x, y:bc.y, dirn:'right' }, mid:{ x:clearX, y:(gy + bc.y)/2 } };
+      }
+      // 後退・横移動: FROMは隙間側の辺（上/下どちらでもよい）から出て、TOへは常に左辺から入る（要求2に整合）。
+      const exitBottom = gy > ac.y;
+      const exitY = exitBottom ? a.y + a.h : a.y;
+      const d = `M ${ac.x} ${exitY} V ${gy} H ${clearX} V ${bc.y} H ${b.x}`;
+      return { d, tip:{ x:b.x, y:bc.y, dirn:'right' }, mid:{ x:clearX, y:(exitY + gy)/2 } };
+    }
+    if(b.x > a.x + a.w - 1){                    // 前進（同じレーン）
       const sx = a.x + a.w, ex = b.x;
       const span = ex - sx;
       const mx = span > 24 ? Math.min(Math.max((sx + ex) / 2 + jog, sx + 6), ex - 6) : (sx + ex) / 2;
@@ -1416,7 +1435,7 @@ function linkPath(a, b, dir, jogIdx, ctx){
       return { d:`M ${ac.x} ${a.y} V ${a.y - 18} H ${leftX} V ${bc.y} H ${b.x}`, tip:{ x:b.x, y:bc.y, dirn:'right' },
                mid:{ x:leftX, y:(ac.y + bc.y)/2 } };
     }
-    // 後退（差戻しなど）
+    // 後退（差戻しなど、同じレーン）
     if(allowFarTo){                             // FROMがTOより下のレーン、または3本以上入る: 下側を回り込みTOの下辺へ
       const back = Math.max(a.y + a.h, b.y + b.h) + 22 + jog;
       return { d:`M ${ac.x} ${a.y + a.h} V ${back} H ${bc.x} V ${b.y + b.h}`,
@@ -1431,7 +1450,26 @@ function linkPath(a, b, dir, jogIdx, ctx){
              tip:{ x:bc.x, y:b.y, dirn:'down' }, mid:{ x:leftX, y:(nearY + topY)/2 } };
   }
   // TB: 流れは上→下、レーンは左右
-  if(b.y > a.y + a.h - 1){
+  // 別レーンをまたぐ接続（前進・後退どちらも）は、レーンとレーンの間の隙間
+  // （ノードが絶対に無い帯）を通って短く行き来する。同じ行（同フェーズ）はこの後で個別に扱う。
+  if(ctx && ctx.gapCross != null && Math.abs(a.y - b.y) >= 1){
+    // 同じ隙間を通る他の辺と重ならないよう、隙間内での通り道も少しずつずらす。
+    const gxJog = jogIdx ? Math.ceil(jogIdx / 2) * 4 * (jogIdx % 2 ? 1 : -1) : 0;
+    const gx = ctx.gapCross + gxJog;
+    const clearY = b.y - 18 - jog;
+    if(b.y > a.y + a.h - 1){
+      // 前進: FROMの下辺（最優先）から出て、隙間を経由してTOの上辺へ入れる
+      const sy = a.y + a.h, nearY = sy + 14 + jog;
+      const d = `M ${ac.x} ${sy} V ${nearY} H ${gx} V ${clearY} H ${bc.x} V ${b.y}`;
+      return { d, tip:{ x:bc.x, y:b.y, dirn:'down' }, mid:{ x:gx, y:(clearY + b.y)/2 } };
+    }
+    // 後退・横移動: FROMは隙間側の辺（右/左どちらでもよい）から出て、TOへは常に上辺から入る（要求2に整合）。
+    const exitRight = gx > ac.x;
+    const exitX = exitRight ? a.x + a.w : a.x;
+    const d = `M ${exitX} ${ac.y} H ${gx} V ${clearY} H ${bc.x} V ${b.y}`;
+    return { d, tip:{ x:bc.x, y:b.y, dirn:'down' }, mid:{ x:gx, y:(ac.y + clearY)/2 } };
+  }
+  if(b.y > a.y + a.h - 1){                      // 前進（同じレーン）
     const sy = a.y + a.h, ey = b.y;
     const span = ey - sy;
     const my = span > 24 ? Math.min(Math.max((sy + ey) / 2 + jog, sy + 6), ey - 6) : (sy + ey) / 2;
@@ -1448,7 +1486,7 @@ function linkPath(a, b, dir, jogIdx, ctx){
     return { d:`M ${a.x} ${ac.y} H ${a.x - 18} V ${topY} H ${bc.x} V ${b.y}`, tip:{ x:bc.x, y:b.y, dirn:'down' },
              mid:{ x:(a.x - 18 + bc.x)/2, y:topY } };
   }
-  // 後退（差戻しなど）
+  // 後退（差戻しなど、同じレーン）
   if(allowFarTo){                               // FROMがTOより右のレーン、または3本以上入る: 右側を回り込みTOの右辺へ
     const back = Math.max(a.x + a.w, b.x + b.w) + 22 + jog;
     return { d:`M ${a.x + a.w} ${ac.y} H ${back} V ${bc.y} H ${b.x + b.w}`,
@@ -1552,25 +1590,35 @@ function detourRoute(a, b, dir, boxes, jogIdx, ctx){
     // 重なるのを防ぐため、やり直すたびに逆向き・大きめに振る。
     const nudge = idx ? Math.min(a.w/2 - 12, Math.ceil(idx/2) * 10) * (idx % 2 ? 1 : -1) : 0;
     const acx = a.x + a.w/2 + nudge, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
-    const sy = a.y + a.h, band = boxes.filter(o=> o.y < b.y && o.y + o.h > sy);
+    // band: 出口の高さ〜TOの高さの間（前進・後退どちらでも成り立つよう min/max で範囲を取る）
+    const sy = a.y + a.h;
+    const yLo = Math.min(sy, b.y), yHi = Math.max(sy, b.y);
+    const band = boxes.filter(o=> o.y < yHi && o.y + o.h > yLo);
     const rx = Math.max(a.x + a.w, b.x + b.w, ...band.map(o=> o.x + o.w)) + pad;
     const lx = Math.min(a.x, b.x, ...band.map(o=> o.x)) - pad;
     const order = allowFarTo ? [rx, lx] : [lx, rx];
+    // 同じ高さから出る他の辺と退避行が重なるのを避けるため、退避の高さも試行ごとにずらす
+    const escY = sy + 14 + idx * 10;
     for(const chx of order){
       const enterR = chx > bcx, ex = enterR ? b.x + b.w : b.x;
-      const d = `M ${acx} ${sy} V ${sy + 14} H ${chx} V ${bcy} H ${ex}`;
+      const d = `M ${acx} ${sy} V ${escY} H ${chx} V ${bcy} H ${ex}`;
       if(!pathHitsBoxes(d, boxes)) return { d, tip:{ x:ex, y:bcy, dirn: enterR ? 'left' : 'right' }, mid:{ x:chx, y:(sy + bcy)/2 } };
     }
   }else{
     const nudge = idx ? Math.min(a.h/2 - 12, Math.ceil(idx/2) * 10) * (idx % 2 ? 1 : -1) : 0;
     const acy = a.y + a.h/2 + nudge, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
-    const sx = a.x + a.w, band = boxes.filter(o=> o.x < b.x && o.x + o.w > sx);
+    // band: 出口の位置〜TOの位置の間（前進・後退どちらでも成り立つよう min/max で範囲を取る）
+    const sx = a.x + a.w;
+    const xLo = Math.min(sx, b.x), xHi = Math.max(sx, b.x);
+    const band = boxes.filter(o=> o.x < xHi && o.x + o.w > xLo);
     const by = Math.max(a.y + a.h, b.y + b.h, ...band.map(o=> o.y + o.h)) + pad;
     const ty = Math.min(a.y, b.y, ...band.map(o=> o.y)) - pad;
     const order = allowFarTo ? [by, ty] : [ty, by];
+    // 同じ位置から出る他の辺と退避列が重なるのを避けるため、退避の位置も試行ごとにずらす
+    const escX = sx + 14 + idx * 10;
     for(const chy of order){
       const enterB = chy > bcy, ey = enterB ? b.y + b.h : b.y;
-      const d = `M ${sx} ${acy} H ${sx + 14} V ${chy} H ${bcx} V ${ey}`;
+      const d = `M ${sx} ${acy} H ${escX} V ${chy} H ${bcx} V ${ey}`;
       if(!pathHitsBoxes(d, boxes)) return { d, tip:{ x:bcx, y:ey, dirn: enterB ? 'up' : 'down' }, mid:{ x:(sx + bcx)/2, y:chy } };
     }
   }
@@ -1637,15 +1685,107 @@ function drawSvg(){
   const lay = computeLayout();
   const pad = 14;
   const titleH = state.title ? 34 : 0;
-  const W = lay.width + pad*2;
-  const H = lay.height + pad*2 + titleH;
+
+  // 分岐(ひし形)の出力を別々の角から出す（要求4）。前進する出力が2〜3本のときだけ割り当てる。
+  const cornerMap = new Map();   // link index -> 角
+  {
+    const bySrc = new Map();
+    state.links.forEach((e, i)=>{
+      const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
+      if(!a || !b || a.node.shape !== 'decision') return;
+      const fwd = lay.dir === 'TB' ? (b.y > a.y + a.h - 1) : (b.x > a.x + a.w - 1);
+      if(!fwd) return;
+      if(!bySrc.has(e.from)) bySrc.set(e.from, []);
+      bySrc.get(e.from).push({ i, a, b });
+    });
+    const CORN = lay.dir === 'TB' ? ['bottom', 'right', 'left'] : ['right', 'bottom', 'top'];
+    bySrc.forEach(list=>{
+      if(list.length < 2 || list.length > 3) return;   // 3つ以内のときだけ角出し（4つ以上は既定のまま）
+      list.sort((p, q)=>{
+        const pf = lay.dir === 'TB' ? p.b.y : p.b.x, qf = lay.dir === 'TB' ? q.b.y : q.b.x;
+        if(pf !== qf) return pf - qf;
+        const pc = lay.dir === 'TB' ? p.b.x : p.b.y, qc = lay.dir === 'TB' ? q.b.x : q.b.y;
+        return pc - qc;
+      });
+      list.forEach((it, k)=> cornerMap.set(it.i, CORN[k]));
+    });
+  }
+
+  // FROM/TOの辺ルール判定用: レーンの前後関係と、ノードごとの出次数・入次数
+  // ・TB: TOの右から入るのは「FROMのレーンがTOより右」または「TOへの入次数が3本以上」のときだけ許可
+  // ・LR: TOの下から入るのは「FROMのレーンがTOより下」または「TOへの入次数が3本以上」のときだけ許可
+  // ・同じレーン内で下から戻る（差戻しなど）場合も、TO右/下から入ってよいとする（FROMが下＝同じレーン）
+  const laneIdxOf = new Map(lay.lanes.map((l, idx)=> [l.id, idx]));
+  const resolveLane = (n)=> n.laneId || (lay.lanes[0] && lay.lanes[0].id);
+  const inCount = new Map();
+  state.links.forEach(e=> inCount.set(e.to, (inCount.get(e.to) || 0) + 1));
+
+  // 接続の経路をすべて先に確定する（重なりを検出したら少しずつずらす。
+  // 要求: 交差は許容するが線の完全な重なりは避ける）。キャンバスサイズを決める前に必要。
+  const placedSegs = [];
+  const linkRenders = state.links.map((e, i)=>{
+    const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
+    if(!a || !b) return null;
+    const corner = cornerMap.get(i);
+    const laneA = laneIdxOf.get(resolveLane(a.node)), laneB = laneIdxOf.get(resolveLane(b.node));
+    const allowFarTo = (laneA != null && laneB != null && laneA >= laneB) || (inCount.get(e.to) || 0) >= 3;
+    // 別レーンをまたぐ接続用: レーン境界のすぐ内側（ノード列と境界線の間の余白）のクロス軸座標。
+    // レーン帯どうしは隙間なく隣接している（境界＝線そのもの）ため、境界線上を通ると
+    // レーンの区切り線と重なって見える。境界からノード列側へ少し入った余白の中央を使う。
+    let gapCross = null;
+    if(laneA != null && laneB != null && laneA !== laneB){
+      const bandA = lay.laneBands[laneA];
+      if(laneB > laneA){
+        gapCross = bandA.start + bandA.size - LAYOUT.gapCross / 2;
+      }else{
+        gapCross = bandA.start + LAYOUT.gapCross / 2;
+      }
+    }
+    const ctx = { allowFarTo, gapCross };
+    const obst = lay.boxes.filter(x=> x.node.id !== e.from && x.node.id !== e.to);
+    // 各試行を「貫通なし」を最優先、「線の重なりなし」を次点にスコアリングして最良のものを採用する。
+    // 単に重なりが無いことだけを基準にすると、貫通しているのにたまたま他の線と重ならない
+    // 経路を選んでしまうことがあるため（要求3が要求4より優先）。
+    let best = null, bestScore = -1, bestMid = null;
+    for(let attempt = 0; attempt < 6 && bestScore < 3; attempt++){
+      let p = corner ? cornerRoute(a, b, lay.dir, corner, attempt) : linkPath(a, b, lay.dir, attempt, ctx);
+      // 要求3: ノードを貫くなら、チャネルへ逃がして迂回する
+      if(pathHitsBoxes(p.d, obst)){
+        const dp = detourRoute(a, b, lay.dir, obst, attempt, ctx);
+        if(dp) p = dp;
+      }
+      const stillHits = pathHitsBoxes(p.d, obst);
+      // 最後の区間（TOへ入る直前）は複数の矢印が同じ点に収束するのが普通なので、重なり判定から除く
+      const midSegs = pathSegmentsOf(p.d).slice(0, -1);
+      const hasOverlap = midSegs.some(s1=> placedSegs.some(s2=> collinearOverlapLen(s1, s2) > 8));
+      const score = (stillHits ? 0 : 2) + (hasOverlap ? 0 : 1);
+      if(score > bestScore){ bestScore = score; best = p; bestMid = midSegs; }
+    }
+    placedSegs.push(...bestMid);
+    return { e, i, p: best };
+  });
+
+  // 経路がノードの並び（lay.width/height）よりはみ出すことがある（隙間を通る経路など）。
+  // はみ出した分だけキャンバスを広げ、負の座標が出た場合は原点をずらして描画が切れないようにする。
+  let minX = 0, minY = 0, maxX = lay.width, maxY = lay.height;
+  linkRenders.forEach(item=>{
+    if(!item) return;
+    pathSegmentsOf(item.p.d).forEach(([x1, y1, x2, y2])=>{
+      minX = Math.min(minX, x1, x2); maxX = Math.max(maxX, x1, x2);
+      minY = Math.min(minY, y1, y2); maxY = Math.max(maxY, y1, y2);
+    });
+  });
+  const shiftX = -Math.min(0, minX), shiftY = -Math.min(0, minY);
+  const W = (maxX + shiftX) + pad * 2;
+  const H = (maxY + shiftY) + pad * 2 + titleH;
+
   const out = [];
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Inter, 'Yu Gothic UI', 'Meiryo UI', sans-serif">`);
   out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF"></rect>`);
   if(state.title){
     out.push(`<text x="${W/2}" y="24" text-anchor="middle" font-size="16" font-weight="700" fill="#16233A">${esc(state.title)}</text>`);
   }
-  out.push(`<g transform="translate(${pad}, ${pad + titleH})">`);
+  out.push(`<g transform="translate(${pad + shiftX}, ${pad + titleH + shiftY})">`);
 
   // レーンの帯と見出し
   lay.laneBands.forEach(band=>{
@@ -1686,67 +1826,6 @@ function drawSvg(){
       }
     });
   }
-
-  // 分岐(ひし形)の出力を別々の角から出す（要求4）。前進する出力が2〜3本のときだけ割り当てる。
-  const cornerMap = new Map();   // link index -> 角
-  {
-    const bySrc = new Map();
-    state.links.forEach((e, i)=>{
-      const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
-      if(!a || !b || a.node.shape !== 'decision') return;
-      const fwd = lay.dir === 'TB' ? (b.y > a.y + a.h - 1) : (b.x > a.x + a.w - 1);
-      if(!fwd) return;
-      if(!bySrc.has(e.from)) bySrc.set(e.from, []);
-      bySrc.get(e.from).push({ i, a, b });
-    });
-    const CORN = lay.dir === 'TB' ? ['bottom', 'right', 'left'] : ['right', 'bottom', 'top'];
-    bySrc.forEach(list=>{
-      if(list.length < 2 || list.length > 3) return;   // 3つ以内のときだけ角出し（4つ以上は既定のまま）
-      list.sort((p, q)=>{
-        const pf = lay.dir === 'TB' ? p.b.y : p.b.x, qf = lay.dir === 'TB' ? q.b.y : q.b.x;
-        if(pf !== qf) return pf - qf;
-        const pc = lay.dir === 'TB' ? p.b.x : p.b.y, qc = lay.dir === 'TB' ? q.b.x : q.b.y;
-        return pc - qc;
-      });
-      list.forEach((it, k)=> cornerMap.set(it.i, CORN[k]));
-    });
-  }
-
-  // FROM/TOの辺ルール判定用: レーンの前後関係と、ノードごとの出次数・入次数
-  // ・TB: TOの右から入るのは「FROMのレーンがTOより右」または「TOへの入次数が3本以上」のときだけ許可
-  // ・LR: TOの下から入るのは「FROMのレーンがTOより下」または「TOへの入次数が3本以上」のときだけ許可
-  const laneIdxOf = new Map(lay.lanes.map((l, idx)=> [l.id, idx]));
-  const resolveLane = (n)=> n.laneId || (lay.lanes[0] && lay.lanes[0].id);
-  const inCount = new Map();
-  state.links.forEach(e=> inCount.set(e.to, (inCount.get(e.to) || 0) + 1));
-
-  // 接続（図形より先に描いて背面へ）。まず全経路を確定し（重なりを検出したら少しずつずらす）、
-  // そのあとまとめて描画する（要求: 交差は許容するが線の完全な重なりは避ける）。
-  const placedSegs = [];
-  const linkRenders = state.links.map((e, i)=>{
-    const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
-    if(!a || !b) return null;
-    const corner = cornerMap.get(i);
-    const laneA = laneIdxOf.get(resolveLane(a.node)), laneB = laneIdxOf.get(resolveLane(b.node));
-    const allowFarTo = (laneA != null && laneB != null && laneA > laneB) || (inCount.get(e.to) || 0) >= 3;
-    const ctx = { allowFarTo };
-    const obst = lay.boxes.filter(x=> x.node.id !== e.from && x.node.id !== e.to);
-    let p = null;
-    for(let attempt = 0; attempt < 6; attempt++){
-      p = corner ? cornerRoute(a, b, lay.dir, corner, attempt) : linkPath(a, b, lay.dir, attempt, ctx);
-      // 要求3: ノードを貫くなら、チャネルへ逃がして迂回する
-      if(pathHitsBoxes(p.d, obst)){
-        const dp = detourRoute(a, b, lay.dir, obst, attempt, ctx);
-        if(dp) p = dp;
-      }
-      // 最後の区間（TOへ入る直前）は複数の矢印が同じ点に収束するのが普通なので、重なり判定から除く
-      const segs = pathSegmentsOf(p.d);
-      const midSegs = segs.slice(0, -1);
-      const overlap = midSegs.some(s1=> placedSegs.some(s2=> collinearOverlapLen(s1, s2) > 8));
-      if(!overlap || attempt === 5){ placedSegs.push(...midSegs); break; }
-    }
-    return { e, i, p };
-  });
 
   linkRenders.forEach(item=>{
     if(!item) return;
