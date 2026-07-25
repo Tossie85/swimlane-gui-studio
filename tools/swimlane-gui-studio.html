@@ -946,6 +946,14 @@ function computeLayout(){
   if(lanes.length){
     state.nodes.forEach(n=>{ if(isDot(n.shape)){ const a = anchorNodeOf(n); if(a) dotPlace.set(n, a); } });
   }
+  // Keep the order of start-dot targets. Their first process nodes share one
+  // flow slot so that the dots and their targets form aligned parallel starts.
+  const startAnchorOrder = new Map();
+  dotPlace.forEach((anchor, dot)=>{
+    if(dot.shape !== 'startdot' || startAnchorOrder.has(anchor.id)) return;
+    startAnchorOrder.set(anchor.id, state.nodes.indexOf(dot));
+  });
+
   let hasLead = false, hasTrail = false;   // 先頭の開始● / 末尾の終了● のための余白が要るか
   dotPlace.forEach((a, d)=>{ if(d.shape === 'startdot') hasLead = true; else hasTrail = true; });
   const leadPad  = hasLead  ? DOT_SLOT : 0;
@@ -1026,18 +1034,27 @@ function computeLayout(){
       const byParent = new Map();    // 親集合キー -> 交差方向に並べる枝
       byRank.get(r).forEach(n=>{
         const ps = predOf(n.id);
-        if(ps.length === 0){
-          slots.push([n]);           // 独立/起点は単独スロット
+        if(startAnchorOrder.has(n.id)){
+          const pk = '__start_anchors__';
+          if(!byParent.has(pk)){ const arr = []; byParent.set(pk, arr); slots.push(arr); }
+          byParent.get(pk).push(n);
+        }else if(ps.length === 0){
+          slots.push([n]);           // independent roots use separate flow slots
         }else{
           const pk = ps.slice().sort().join(',');
           if(!byParent.has(pk)){ const arr = []; byParent.set(pk, arr); slots.push(arr); }
           byParent.get(pk).push(n);
         }
+
       });
       slots.forEach(sg=>{
         // 分岐の枝は、終了●へ到達できる本線を cross0 に置く。
         // こうすると開始の真下(TB)/右(LR)に終了が並ぶ（要求1）。到達可否が同じなら元の順を保つ。
-        if(sg.length > 1) sg.sort((p, q)=> (reachesEnd.get(q.id) ? 1 : 0) - (reachesEnd.get(p.id) ? 1 : 0));
+        if(sg.some(n=> startAnchorOrder.has(n.id))){
+          sg.sort((p, q)=> (startAnchorOrder.get(p.id) ?? Infinity) - (startAnchorOrder.get(q.id) ?? Infinity));
+        }else if(sg.length > 1){
+          sg.sort((p, q)=> (reachesEnd.get(q.id) ? 1 : 0) - (reachesEnd.get(p.id) ? 1 : 0));
+        }
         sg.forEach((n, cross)=> pos.set(n.id, { flow, cross }));
         crossCount = Math.max(crossCount, sg.length);
         flow++;
@@ -1274,11 +1291,45 @@ function computeLayout(){
   const gridBoxes = boxes.slice();   // ●を足す前の図形だけ（重なり判定に使う）
   const boxByNode = new Map(boxes.map(b=>[b.node, b]));
   const dotBoxes = [];
+
+  // Place multiple start dots from one lane/phase as a single row (TB) or column (LR).
+  const startGroups = new Map();
+  dotPlace.forEach((anchor, dot)=>{
+    if(dot.shape !== 'startdot') return;
+    const laneId = anchor.laneId || (lanes[0] && lanes[0].id);
+    const phaseId = state.phases.length ? (anchor.phaseId || phases[0].id) : '__all';
+    const groupKey = laneId + '\u001f' + phaseId;
+    if(!startGroups.has(groupKey)) startGroups.set(groupKey, []);
+    startGroups.get(groupKey).push({ anchor, dot, laneId });
+  });
+  const startSlot = new Map();
+  startGroups.forEach(group=>{
+    if(group.length < 2) return;
+    group.sort((p, q)=> state.nodes.indexOf(p.dot) - state.nodes.indexOf(q.dot));
+    const anchorBoxes = group.map(g=>boxByNode.get(g.anchor)).filter(Boolean);
+    if(!anchorBoxes.length) return;
+    if(dir === 'TB'){
+      const y = Math.max(headerMain, Math.min(...anchorBoxes.map(ab=>ab.y - DOT_SLOT)));
+      group.forEach(g=>{
+        const ab = boxByNode.get(g.anchor);
+        startSlot.set(g.dot, { x:ab.x + (ab.w - DOT_SIZE)/2, y });
+      });
+    }else{
+      const x = Math.max(headerMain, Math.min(...anchorBoxes.map(ab=>ab.x - DOT_SLOT)));
+      group.forEach(g=>{
+        const ab = boxByNode.get(g.anchor);
+        startSlot.set(g.dot, { x, y:ab.y + (ab.h - DOT_SIZE)/2 });
+      });
+    }
+  });
   dotPlace.forEach((a, d)=>{
     const ab = boxByNode.get(a);
     if(!ab) return;   // 接続先がグリッドに無い（通常は起きない）
     let x, y;
-    if(dir === 'LR'){
+    const grouped = startSlot.get(d);
+    if(grouped){
+      ({ x, y } = grouped);
+    }else if(dir === 'LR'){
       y = ab.y + (ab.h - DOT_SIZE)/2;
       x = d.shape === 'startdot'
         ? Math.max(headerMain, ab.x - DOT_SLOT)   // ヘッダーの帯には食い込ませない
