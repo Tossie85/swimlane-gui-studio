@@ -462,17 +462,17 @@
 
       <h3>記法（.swim）</h3>
       <pre>swimlane
-title "受注フロー"
-direction LR
+    title "受注フロー"
+    direction LR
 
-lane sales "営業部" #FFF9C4
-phase p1 "受付"
+    lane sales "営業部" #FFF9C4
+    phase p1 "受付"
 
-node n1 "申込を受ける" lane=sales phase=p1 shape=start
-node n2 "内容を確認"   lane=sales phase=p1
+    node n1 "申込を受ける" lane=sales phase=p1 shape=start
+    node n2 "内容を確認"   lane=sales phase=p1
 
-n1 -&gt; n2 "確認依頼"</pre>
-      <p><code>lane=</code> や <code>phase=</code> のような名前付き属性にしているため、後から項目を増やしても古いファイルをそのまま読み込めます。<code>direction</code> は <code>LR</code>（左から右）と <code>TB</code>（上から下）が指定でき、<code>TD</code> は <code>TB</code> と同じ扱いです。</p>
+    n1 -&gt; n2 "確認依頼"</pre>
+      <p><code>lane=</code> や <code>phase=</code> のような名前付き属性にしているため、後から項目を増やしても古いファイルをそのまま読み込めます。<code>direction</code> は <code>LR</code>（左から右）と <code>TB</code>（上から下）が指定でき、<code>TD</code> は <code>TB</code> と同じ扱いです。2行目以降のインデントは Mermaid の記法にならった見た目上の調整で、あってもなくても図の内容には影響しません。</p>
 
       <h3>開始・終了の「●」</h3>
       <p>接続の from に <code>[*]</code> を選ぶと開始（●）、to に選ぶと終了（◉）が、相手と同じレーン・同じフェーズに作られます。開始は接続先の手前（LRなら左／TBなら上）、終了は先（右／下）に、位置を揃えて描かれます。そのあとは普通の図形として位置や所属を変更できます。図形の「形」から直接追加することもできます。</p>
@@ -507,9 +507,61 @@ n1 -&gt; n2 "確認依頼"</pre>
       <p style="margin-top:0;">スイムレーン図（業務フロー図）をGUIで組み立てるツールです。入力内容はブラウザの外に送信されません。</p>
       <h3>使用ライブラリ</h3>
       <div class="credit-item">
-        <div class="credit-name">なし</div>
-        <div class="credit-detail">描画はすべてこのファイル内のコードでSVGを生成しています。外部ライブラリ・外部通信ともにありません。</div>
+        <div class="credit-name">なし（外部通信なし）</div>
+        <div class="credit-detail">.swim の解析とSVG描画は、このサイトが自作した <code>swimlane.js</code>（下記）で行っています。サードパーティ製ライブラリ・外部通信ともにありません。</div>
       </div>
+
+      <h3>自分のサイトのMarkdownで ```swimlane を使えるようにする</h3>
+      <p>Mermaidと同じように、自分のサイトのMarkdown記法に <code>```swimlane</code> フェンスコードブロックを組み込みたいサイト管理者向けの手順です（tossie85 lab自体もこの方式で記事内に埋め込んでいます）。</p>
+      <p>marked.js や markdown-it など多くのMarkdown変換ライブラリは、既定で <code>```swimlane</code> ブロックを <code>&lt;pre&gt;&lt;code class="language-swimlane"&gt;</code> として出力します（CommonMark準拠）。ページ読み込み後に以下のスクリプトを実行すれば、それらを図に置き換えられます。</p>
+      <pre>&lt;script src="swimlane.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  document.querySelectorAll('pre code.language-swimlane').forEach(function(codeEl){
+    var pre = codeEl.closest('pre');
+    var result = Swimlane.render(codeEl.textContent);
+    if(result.ok){
+      pre.outerHTML = result.svg;
+    }else{
+      pre.textContent = '記法エラー:\n' + result.errors.join('\n');
+    }
+  });
+&lt;/script&gt;</pre>
+      <p>自作のMarkdownパーサーでフェンスの言語ごとに出力先タグを変えられる場合（PHPのParsedownなど）は、<code>&lt;pre class="swimlane"&gt;元のコード&lt;/pre&gt;</code> のように直接出力し、上と同じ要領で <code>pre.swimlane</code> を対象に <code>Swimlane.render()</code> を呼ぶ方がシンプルです。</p>
+
+      <h3>ライブラリとして他サイトで使う</h3>
+      <p>この解析・描画エンジンは <code>swimlane.js</code> 1ファイルに切り出してあり、ダウンロードして他のWebサイトにそのまま組み込めます（外部通信なし・依存ライブラリなし）。</p>
+      <p style="margin:0 0 10px;">
+        <a href="../assets/swimlane.js" download>swimlane.js をダウンロード</a>
+      </p>
+      <pre>&lt;script src="swimlane.js"&gt;&lt;/script&gt;
+&lt;div id="diagram"&gt;&lt;/div&gt;
+&lt;script&gt;
+  Swimlane.renderTo('#diagram', `swimlane
+    title "受注フロー"
+    direction LR
+
+    lane sales "営業部"
+    node n1 "申込を受ける" lane=sales shape=start
+    node n2 "内容を確認"   lane=sales
+
+    n1 -&gt; n2 "確認依頼"
+`);
+&lt;/script&gt;</pre>
+      <p>主なAPI：</p>
+      <div class="credit-item">
+        <div class="credit-name"><code>Swimlane.renderTo(el, code)</code></div>
+        <div class="credit-detail">.swim コードから図を描き、指定した要素（セレクタ文字列 or DOM要素）に直接SVGを描画します。戻り値は <code>render()</code> と同じです。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name"><code>Swimlane.render(code)</code></div>
+        <div class="credit-detail">DOMを触らず <code>{ ok, svg, width, height, errors, state }</code> を返します。SVG文字列を自分で使いたいときに。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name"><code>Swimlane.parse(code)</code> / <code>.generate(state)</code></div>
+        <div class="credit-detail">.swim ⇄ 状態オブジェクトの相互変換です。このツールの「コード直接編集」欄も内部で同じ関数を使っています。</div>
+      </div>
+      <p>記法（.swim）はこのツールの <code>❓</code> ボタンの説明と共通です。</p>
+
       <h3>関連ツール</h3>
       <div class="credit-item">
         <div class="credit-name">Mermaid GUI Studio</div>
@@ -548,6 +600,7 @@ n1 -&gt; n2 "確認依頼"</pre>
   </section>
 </div>
 
+<script src="../assets/swimlane.js"></script>
 <script>
 /* =========================================================================
    Swimlane GUI Studio
@@ -572,27 +625,12 @@ const state = emptyState();
 let manualMode = false;
 let counters = { lane:1, phase:1, node:1 };
 
-const SHAPES = [
-  { v:'process',  label:'処理（四角）' },
-  { v:'start',    label:'開始（角丸）' },
-  { v:'end',      label:'終了（角丸）' },
-  { v:'decision', label:'判断（ひし形）' },
-  { v:'io',       label:'入出力（平行四辺形）' },
-  { v:'startdot', label:'開始点（●）' },
-  { v:'enddot',   label:'終了点（◉）' },
-];
-/* 開始/終了の「●」。状態遷移図の [*] にあたるもので、他の図形より小さく描く */
-const DOT_SHAPES = ['startdot','enddot'];
-const DOT_SIZE = 26;
-/* ●と接続先ノードの間隔。矢印の棒（矢じり約7px＋軸）がはっきり見える長さにする。 */
-const DOT_GAP = 20;
-const DOT_SLOT = DOT_SIZE + DOT_GAP;
-const isDot = (shape)=> DOT_SHAPES.includes(shape);
+/* 図形の種類・線種・isDot などの定義は、ライブラリ（assets/swimlane.js）を
+   参照する。GUIとライブラリで定義がずれないよう、二重に持たない。 */
+const SHAPES = Swimlane.SHAPES;
+const LINK_STYLES = Swimlane.LINK_STYLES;
+const isDot = Swimlane.isDot;
 const STAR = '[*]';
-const LINK_STYLES = [
-  { v:'solid',  label:'実線' },
-  { v:'dashed', label:'破線' },
-];
 const LANE_COLORS = ['#E3F2FD','#FFF9C4','#C8E6C9','#F8BBD0','#D1C4E9','#FFE0B2','#B2EBF2','#DCEDC8'];
 const NODE_COLORS = ['','#FFFFFF','#FFF9C4','#C8E6C9','#FFCDD2','#BBDEFB','#E1BEE7','#FFE0B2'];
 
@@ -779,1145 +817,12 @@ function makeSortable(listEl, arr, onReorder, isValidOrder){
   });
 }
 
-/* ============ コード生成（state → .swim） ============ */
-/* ラベルは常に "..." で囲む。独自形式なので、中の " と \ はエスケープして元の文字を保つ */
-function quote(s){
-  return '"' + String(s == null ? '' : s).replace(/\\/g,'\\\\').replace(/"/g,'\\"') + '"';
-}
+/* ============ コード生成・解析 ============
+   .swim ⇄ state の変換は、他サイトからも同じ結果になるようライブラリ
+   （Swimlane.generate / .parse）に委譲する。 */
 
-function generateCode(){
-  const lines = ['swimlane'];
-  if(state.title) lines.push('title ' + quote(state.title));
-  lines.push('direction ' + state.direction);
-  if(state.lanes.length){
-    lines.push('');
-    state.lanes.forEach(l=> lines.push(`lane ${l.id} ${quote(l.label)}${l.color ? ' ' + l.color : ''}`));
-  }
-  if(state.phases.length){
-    lines.push('');
-    state.phases.forEach(p=> lines.push(`phase ${p.id} ${quote(p.label)}`));
-  }
-  if(state.nodes.length){
-    lines.push('');
-    state.nodes.forEach(n=>{
-      const attrs = [];
-      if(n.laneId)  attrs.push('lane=' + n.laneId);
-      if(n.phaseId) attrs.push('phase=' + n.phaseId);
-      if(n.shape && n.shape !== 'process') attrs.push('shape=' + n.shape);
-      if(n.color) attrs.push('color=' + n.color);
-      lines.push(`node ${n.id} ${quote(n.label)}${attrs.length ? ' ' + attrs.join(' ') : ''}`);
-    });
-  }
-  if(state.links.length){
-    lines.push('');
-    state.links.forEach(e=>{
-      const arrow = e.style === 'dashed' ? '-->' : '->';
-      lines.push(`${e.from} ${arrow} ${e.to}${e.label ? ' ' + quote(e.label) : ''}`);
-    });
-  }
-  if(!state.lanes.length && !state.nodes.length){
-    lines.push('');
-    lines.push('# 左のフォームからレーンと図形を追加してください');
-  }
-  return lines.join('\n');
-}
-
-/* ============ コード解析（.swim → state） ============ */
-/* 手書き・手直しされる前提なので、行単位で寛容に読む。
-   解釈できない行は無視し、致命的な矛盾のみエラーとして返す。 */
-function parseCode(text){
-  const next = emptyState();
-  const errors = [];
-  const lines = String(text || '').split('\n');
-
-  // "..." で囲まれたラベルを取り出しつつ、残りをトークンに分ける
-  const takeLabel = (rest) => {
-    const m = rest.match(/"((?:[^"\\]|\\.)*)"/);
-    if(!m) return { label:'', rest };
-    const label = m[1].replace(/\\(["\\])/g, '$1');
-    return { label, rest: rest.slice(0, m.index) + ' ' + rest.slice(m.index + m[0].length) };
-  };
-
-  lines.forEach((raw, i)=>{
-    const line = raw.trim();
-    if(!line || line.startsWith('#') || line === 'swimlane') return;
-    const lineNo = i + 1;
-
-    if(/^title\b/.test(line)){ next.title = takeLabel(line).label; return; }
-    if(/^direction\b/.test(line)){
-      // フローチャートに合わせた表記。TD は TB の別名として受け付ける
-      const d = (line.split(/\s+/)[1] || '').toUpperCase();
-      next.direction = (d === 'TB' || d === 'TD') ? 'TB' : 'LR';
-      return;
-    }
-    if(/^lane\b/.test(line)){
-      const { label, rest } = takeLabel(line);
-      const tok = rest.split(/\s+/).filter(Boolean);
-      const id = tok[1];
-      if(!id){ errors.push(`${lineNo}行目: lane のIDがありません`); return; }
-      const color = (rest.match(/#[0-9A-Fa-f]{3,8}/) || [])[0] || '';
-      next.lanes.push({ id, label: label || id, color });
-      return;
-    }
-    if(/^phase\b/.test(line)){
-      const { label, rest } = takeLabel(line);
-      const id = rest.split(/\s+/).filter(Boolean)[1];
-      if(!id){ errors.push(`${lineNo}行目: phase のIDがありません`); return; }
-      next.phases.push({ id, label: label || id });
-      return;
-    }
-    if(/^node\b/.test(line)){
-      const { label, rest } = takeLabel(line);
-      const tok = rest.split(/\s+/).filter(Boolean);
-      const id = tok[1];
-      if(!id){ errors.push(`${lineNo}行目: node のIDがありません`); return; }
-      const attr = {};
-      tok.slice(2).forEach(t=>{
-        const eq = t.indexOf('=');
-        if(eq > 0) attr[t.slice(0, eq)] = t.slice(eq + 1);
-      });
-      const shape = attr.shape || 'process';
-      next.nodes.push({
-        id, label: isDot(shape) ? label : (label || id),
-        laneId: attr.lane || '', phaseId: attr.phase || '',
-        shape, color: attr.color || '',
-      });
-      return;
-    }
-    // 接続: A -> B "ラベル" / A --> B
-    const link = line.match(/^(\S+)\s*(-->|->)\s*(\S+)(.*)$/);
-    if(link){
-      next.links.push({
-        from: link[1], to: link[3],
-        label: takeLabel(link[4] || '').label,
-        style: link[2] === '-->' ? 'dashed' : 'solid',
-      });
-      return;
-    }
-    errors.push(`${lineNo}行目: 解釈できない行です → ${line}`);
-  });
-
-  // 参照の整合性チェック
-  const laneIds = next.lanes.map(l=>l.id);
-  const phaseIds = next.phases.map(p=>p.id);
-  const nodeIds = next.nodes.map(n=>n.id);
-  next.nodes.forEach(n=>{
-    if(n.laneId && !laneIds.includes(n.laneId)) errors.push(`node ${n.id}: レーン ${n.laneId} が見つかりません`);
-    if(n.phaseId && !phaseIds.includes(n.phaseId)) errors.push(`node ${n.id}: フェーズ ${n.phaseId} が見つかりません`);
-  });
-  next.links.forEach(e=>{
-    if(!nodeIds.includes(e.from)) errors.push(`接続 ${e.from} → ${e.to}: ${e.from} が見つかりません`);
-    if(!nodeIds.includes(e.to)) errors.push(`接続 ${e.from} → ${e.to}: ${e.to} が見つかりません`);
-  });
-  return { state: next, errors };
-}
-
-/* ============ レイアウト計算 ============
-   グリッド自動配置。ここだけ差し替えれば自由配置へ移行できるよう、
-   出力は「図形ごとの矩形」と「レーン/フェーズの帯」に限定する。 */
-const LAYOUT = {
-  laneHeaderW: 132,   // レーン名の帯（LR時は左、TB時は上）
-  phaseHeaderH: 38,   // フェーズ名の帯
-  nodeW: 168, nodeH: 58,
-  gapMain: 34,        // フェーズとフェーズの間隔
-  gapInner: 22,       // 同じフェーズ内で流れ方向に並べるときの間隔
-  gapCross: 18,       // レーンを横切る向き（分岐で枝を並べたとき）の間隔
-};
-
-function computeLayout(){
-  const L = LAYOUT;
-  const dir = state.direction;
-  const lanes = state.lanes;
-  // フェーズ未定義でもノードだけで描けるよう、暗黙の1フェーズを用意する
-  const phases = state.phases.length ? state.phases : [{ id:'__all', label:'' }];
-  const hasPhaseHeader = state.phases.length > 0;
-
-  // 開始/終了の●は、接続先ノードの隣（開始=左/上、終了=右/下）へ後から揃えて置く。
-  // グリッドの列には入れないので、●のせいで列がずれて矢印が遠回りするのを防げる。
-  const anchorNodeOf = (dot)=>{
-    const linkId = dot.shape === 'startdot'
-      ? (state.links.find(e=>e.from === dot.id) || {}).to
-      : (state.links.find(e=>e.to === dot.id) || {}).from;
-    if(!linkId) return null;
-    const a = state.nodes.find(n=>n.id === linkId);
-    return (a && !isDot(a.shape)) ? a : null;   // 相手も●なら揃えようがないのでグリッドに残す
-  };
-  const dotPlace = new Map();   // dotNode -> anchorNode（隣に揃えて置く●）
-  if(lanes.length){
-    state.nodes.forEach(n=>{ if(isDot(n.shape)){ const a = anchorNodeOf(n); if(a) dotPlace.set(n, a); } });
-  }
-  // Keep the order of start-dot targets. Their first process nodes share one
-  // flow slot so that the dots and their targets form aligned parallel starts.
-  const startAnchorOrder = new Map();
-  dotPlace.forEach((anchor, dot)=>{
-    if(dot.shape !== 'startdot' || startAnchorOrder.has(anchor.id)) return;
-    startAnchorOrder.set(anchor.id, state.nodes.indexOf(dot));
-  });
-
-  let hasLead = false, hasTrail = false;   // 先頭の開始● / 末尾の終了● のための余白が要るか
-  dotPlace.forEach((a, d)=>{ if(d.shape === 'startdot') hasLead = true; else hasTrail = true; });
-  const leadPad  = hasLead  ? DOT_SLOT : 0;
-  const trailPad = hasTrail ? DOT_SLOT : 0;
-
-  // セル(レーン×フェーズ)ごとにノードを詰める
-  const cell = new Map();
-  const key = (l,p)=> l + '\u001f' + p;
-  const orphans = [];
-  state.nodes.forEach(n=>{
-    if(dotPlace.has(n)) return;   // 隣に揃えて置く●はグリッドから除外する
-    const laneId = n.laneId || (lanes[0] && lanes[0].id);
-    const phaseId = state.phases.length ? n.phaseId || phases[0].id : '__all';
-    if(!laneId){ orphans.push(n); return; }
-    const k = key(laneId, phaseId);
-    if(!cell.has(k)) cell.set(k, []);
-    cell.get(k).push(n);
-  });
-
-  // 図形1つ分の大きさ。流れ方向(main)とレーンを横切る方向(cross)で読み替える
-  const nodeMain  = dir === 'LR' ? L.nodeW : L.nodeH;
-  const nodeCross = dir === 'LR' ? L.nodeH : L.nodeW;
-
-  // 各ノードから前向きに終了●へ到達できるか（開始→終了の本線を主列に置くのに使う。要求1）
-  const reachesEnd = new Map();
-  {
-    const fwd = new Map();
-    state.nodes.forEach(n=> fwd.set(n.id, []));
-    state.links.forEach(e=>{ if(fwd.has(e.from)) fwd.get(e.from).push(e.to); });
-    const endIds = new Set(state.nodes.filter(n=> n.shape === 'enddot').map(n=> n.id));
-    const canReach = (id, seen)=>{
-      if(reachesEnd.has(id)) return reachesEnd.get(id);
-      if(seen.has(id)) return false;
-      seen.add(id);
-      let r = endIds.has(id);
-      if(!r){ for(const v of (fwd.get(id) || [])){ if(canReach(v, seen)){ r = true; break; } } }
-      seen.delete(id);
-      if(!seen.size) reachesEnd.set(id, r);   // 確定値のみ記録（再帰途中の暫定値は残さない）
-      return r;
-    };
-    state.nodes.forEach(n=> canReach(n.id, new Set()));
-  }
-
-  // セル内のノードを「フロー深さ(rank)」で並べる。
-  //   ・rank = そのセル内で前につながる距離の最大（前がなければ0）
-  //   ・独立したノード（同じセル内でつながっていない）は流れ方向に積む
-  //     （＝レーンに足したノードは上下(TB)/左右(LR)にマージンを空けて並ぶ。要求3）
-  //   ・同じ親を持つ枝だけ交差方向に横並び（LRは縦・TBは横。分岐が線を跨がない。仕様5/ルール3）
-  //   ・つながっている場合は必ず TO が FROM より後ろ(下/右)の流れ位置になる（要求2）
-  function computeCellLayout(list){
-    const ids = new Set(list.map(n=>n.id));
-    const predOf = (id)=> state.links
-      .filter(e=>e.to === id && ids.has(e.from) && e.from !== id)
-      .map(e=>e.from);
-    const rank = new Map();
-    const rankOf = (id, seen)=>{
-      if(rank.has(id)) return rank.get(id);
-      if(seen.has(id)) return 0;      // 循環しても止まるように
-      seen.add(id);
-      let r = 0;
-      predOf(id).forEach(p=>{ r = Math.max(r, rankOf(p, seen) + 1); });
-      seen.delete(id);
-      rank.set(id, r);
-      return r;
-    };
-    list.forEach(n=> rankOf(n.id, new Set()));
-    // rank ごとにまとめ、元の並び順を保つ
-    const byRank = new Map();
-    list.forEach(n=>{ const r = rank.get(n.id); if(!byRank.has(r)) byRank.set(r, []); byRank.get(r).push(n); });
-    const ranks = [...byRank.keys()].sort((a,b)=>a-b);
-    // 各 rank を「流れスロット」に割り振る。
-    //   ・親を持たない（独立/起点）ノードはそれぞれ単独スロット＝流れ方向に積む
-    //   ・同じ親集合の枝はひとつのスロットにまとめ、交差方向に横並びにする
-    const pos = new Map();
-    let flow = 0, crossCount = 0;
-    ranks.forEach(r=>{
-      const slots = [];              // 各要素が1つの流れスロット（中身は交差方向に並ぶ）
-      const byParent = new Map();    // 親集合キー -> 交差方向に並べる枝
-      byRank.get(r).forEach(n=>{
-        const ps = predOf(n.id);
-        if(startAnchorOrder.has(n.id)){
-          const pk = '__start_anchors__';
-          if(!byParent.has(pk)){ const arr = []; byParent.set(pk, arr); slots.push(arr); }
-          byParent.get(pk).push(n);
-        }else if(ps.length === 0){
-          slots.push([n]);           // independent roots use separate flow slots
-        }else{
-          const pk = ps.slice().sort().join(',');
-          if(!byParent.has(pk)){ const arr = []; byParent.set(pk, arr); slots.push(arr); }
-          byParent.get(pk).push(n);
-        }
-
-      });
-      slots.forEach(sg=>{
-        // 分岐の枝は、終了●へ到達できる本線を cross0 に置く。
-        // こうすると開始の真下(TB)/右(LR)に終了が並ぶ（要求1）。到達可否が同じなら元の順を保つ。
-        if(sg.some(n=> startAnchorOrder.has(n.id))){
-          sg.sort((p, q)=> (startAnchorOrder.get(p.id) ?? Infinity) - (startAnchorOrder.get(q.id) ?? Infinity));
-        }else if(sg.length > 1){
-          sg.sort((p, q)=> (reachesEnd.get(q.id) ? 1 : 0) - (reachesEnd.get(p.id) ? 1 : 0));
-        }
-        sg.forEach((n, cross)=> pos.set(n.id, { flow, cross }));
-        crossCount = Math.max(crossCount, sg.length);
-        flow++;
-      });
-    });
-    return { pos, flowCount: flow, crossCount };
-  }
-
-  // --- 連結成分（フロー）を求める。開始●〜終了◉ の一続きを1グループとして扱う ---
-  const compId = new Map();
-  {
-    const adj = new Map();
-    state.nodes.forEach(n=> adj.set(n.id, []));
-    state.links.forEach(e=>{ if(adj.has(e.from) && adj.has(e.to)){ adj.get(e.from).push(e.to); adj.get(e.to).push(e.from); } });
-    let c = 0;
-    state.nodes.forEach(n=>{
-      if(compId.has(n.id)) return;
-      const st = [n.id]; compId.set(n.id, c);
-      while(st.length){ const u = st.pop(); adj.get(u).forEach(v=>{ if(!compId.has(v)){ compId.set(v, c); st.push(v); } }); }
-      c++;
-    });
-  }
-  const compSize = new Map();
-  state.nodes.forEach(n=>{ const c = compId.get(n.id); compSize.set(c, (compSize.get(c) || 0) + 1); });
-  // 2ノード以上つながっていれば「フロー」。単独ノードは 'misc' に集めて流れ方向に積む（要求3）
-  const MISC = 'misc';
-  const bucketKeyOf = (n)=> (compSize.get(compId.get(n.id)) >= 2) ? ('g' + compId.get(n.id)) : MISC;
-
-  // レーンごとに、フロー(連結成分)を交差方向へ並列に割り当てる（開始〜終了を1グループに）。
-  //   ・各フロー=1トラック。レーン内の全フェーズで同じ交差位置を使うので、TBは横並び・LRは縦並びになる。
-  //   ・トラックの中はこれまで通り rank(流れ) と 枝(交差) で並べる。
-  const nodePos = new Map();          // node.id -> { flow, cross }
-  const cellFlowCount = new Map();    // key(l,p) -> そのセルの流れ方向スロット数
-  const laneCross = new Map();        // laneId -> 交差方向の列数
-  lanes.forEach(l=>{
-    // このレーンに現れるバケツ（フロー/misc）を初出順に並べる
-    const order = []; const seen = new Set();
-    phases.forEach(p=> (cell.get(key(l.id, p.id)) || []).forEach(n=>{
-      const bk = bucketKeyOf(n);
-      if(!seen.has(bk)){ seen.add(bk); order.push(bk); }
-    }));
-    // 各バケツのセルごとの局所レイアウトと、レーン内での交差幅・占有フェーズを求める
-    const local = new Map();    // bk -> Map(phaseId -> cl)
-    const widthOf = new Map();  // bk -> 交差列数（レーン内最大）
-    const phasesOf = new Map(); // bk -> このバケツがノードを持つフェーズid配列
-    order.forEach(bk=>{
-      const byPhase = new Map(); let w = 1; const ph = [];
-      phases.forEach(p=>{
-        const sub = (cell.get(key(l.id, p.id)) || []).filter(n=> bucketKeyOf(n) === bk);
-        const cl = computeCellLayout(sub);
-        byPhase.set(p.id, cl);
-        if(sub.length) ph.push(p.id);
-        w = Math.max(w, cl.crossCount);
-      });
-      local.set(bk, byPhase); widthOf.set(bk, w); phasesOf.set(bk, ph);
-    });
-    // 交差列の割り当て。フェーズが重ならないバケツ同士は同じ列を共有してよい（要求: 別フェーズなら同位置OK）。
-    // フェーズ占有が重なるバケツだけ別の列に置く（区間ごとの詰め込み＝first-fit）。
-    const occ = new Map();   // phaseId -> Set(占有中の列index)
-    phases.forEach(p=> occ.set(p.id, new Set()));
-    const baseOf = new Map();
-    let laneCols = 0;
-    order.forEach(bk=>{
-      const w = widthOf.get(bk), ph = phasesOf.get(bk);
-      let base = 0;
-      for(;;){
-        let ok = true;
-        for(const pid of ph){ const s = occ.get(pid);
-          for(let c = base; c < base + w; c++){ if(s.has(c)){ ok = false; break; } }
-          if(!ok) break;
-        }
-        if(ok) break;
-        base++;
-      }
-      ph.forEach(pid=>{ const s = occ.get(pid); for(let c = base; c < base + w; c++) s.add(c); });
-      baseOf.set(bk, base);
-      laneCols = Math.max(laneCols, base + w);
-    });
-    laneCross.set(l.id, Math.max(1, laneCols));
-    // 各ノードの最終 (flow, cross) と、セルの流れ方向スロット数を確定
-    phases.forEach(p=>{
-      let flowMax = 0;
-      order.forEach(bk=>{
-        const cl = local.get(bk).get(p.id);
-        flowMax = Math.max(flowMax, cl.flowCount);
-        cl.pos.forEach((pc, id)=> nodePos.set(id, { flow: pc.flow, cross: baseOf.get(bk) + pc.cross }));
-      });
-      cellFlowCount.set(key(l.id, p.id), flowMax);
-    });
-  });
-
-  // 同一フェーズで「後ろのレーン→前のレーン」（TBなら右→左）へ渡るエッジは、TOを1つ後ろの
-  // 流れ位置へ下げる。こうすると FROM の下(TB)/右(LR)から出て TO の上(TB)/左(LR)へ入る、
-  // 自然な下向き（右向き）フローになり、横に戻る線を避けられる。
-  {
-    const laneIdx = new Map(lanes.map((l, i)=> [l.id, i]));
-    const phaseOf = (n)=> state.phases.length ? (n.phaseId || phases[0].id) : '__all';
-    const laneOf  = (n)=> n.laneId || (lanes[0] && lanes[0].id);
-    const occupied = (ck, flow, cross, exceptId)=>
-      (cell.get(ck) || []).some(n=>{ if(n.id === exceptId) return false; const p = nodePos.get(n.id); return p && p.flow === flow && p.cross === cross; });
-    let changed = true, guard = 0;
-    while(changed && guard++ < 30){
-      changed = false;
-      state.links.forEach(e=>{
-        const A = state.nodes.find(n=> n.id === e.from), B = state.nodes.find(n=> n.id === e.to);
-        if(!A || !B || isDot(A.shape) || isDot(B.shape)) return;
-        if(phaseOf(A) !== phaseOf(B) || laneOf(A) === laneOf(B)) return;   // 同一フェーズ・別レーンのみ
-        if(laneIdx.get(laneOf(B)) >= laneIdx.get(laneOf(A))) return;        // Bが前(左/上)のレーンのときだけ
-        const pa = nodePos.get(A.id), pb = nodePos.get(B.id);
-        if(!pa || !pb || pb.flow > pa.flow) return;
-        let f = pa.flow + 1;
-        while(occupied(key(laneOf(B), phaseOf(B)), f, pb.cross, B.id)) f++;
-        nodePos.set(B.id, { flow: f, cross: pb.cross });
-        changed = true;
-      });
-    }
-    // 下げた分、各セルの流れ数を数え直す
-    lanes.forEach(l=> phases.forEach(p=>{
-      let mx = 0;
-      (cell.get(key(l.id, p.id)) || []).forEach(n=>{ const pp = nodePos.get(n.id); if(pp) mx = Math.max(mx, pp.flow + 1); });
-      cellFlowCount.set(key(l.id, p.id), mx);
-    }));
-  }
-
-  // フェーズの幅 = そのフェーズでいちばん多く流れ方向に並ぶ数（レーンをまたいで揃える）
-  const phaseRuns = phases.map(p=>{
-    let max = 1;
-    lanes.forEach(l=> max = Math.max(max, cellFlowCount.get(key(l.id, p.id)) || 0));
-    return max;
-  });
-  // レーンの厚み = そのレーンの交差方向の列数（並列フローの分だけ広がる）
-  const laneRuns = lanes.map(l=> Math.max(1, laneCross.get(l.id) || 0));
-
-  const headerMain = dir === 'LR' ? L.laneHeaderW : L.phaseHeaderH;
-  const mainStart = headerMain + leadPad;   // 先頭に開始●があれば、その分だけ流れ方向にずらす
-  const crossStart = dir === 'LR'
-    ? (hasPhaseHeader ? L.phaseHeaderH : 0)
-    : (hasPhaseHeader ? L.laneHeaderW : 0);
-
-  // 上フェーズの終了●と下フェーズの開始●が同じ列に来る境界は、●2つが縦に並ぶ隙間を空ける。
-  // （同じ列を共有したまま、横へずらさず上下に離して衝突を避ける）
-  const gapAfter = phases.map(()=> L.gapMain);
-  {
-    const recOf = (dot)=>{
-      const anchor = dotPlace.get(dot);
-      const pos = anchor && nodePos.get(anchor.id);
-      if(!pos) return null;
-      const laneId = anchor.laneId || (lanes[0] && lanes[0].id);
-      const phaseId = state.phases.length ? (anchor.phaseId || phases[0].id) : '__all';
-      return { pj: phases.findIndex(p=> p.id === phaseId), laneId, cross: pos.cross };
-    };
-    const ends = [], starts = [];
-    dotPlace.forEach((anchor, dot)=>{
-      const r = recOf(dot); if(!r) return;
-      (dot.shape === 'enddot' ? ends : starts).push(r);
-    });
-    const need = DOT_SLOT * 2 + 14;   // ●2つ分＋間の隙間
-    for(let j = 0; j < phases.length - 1; j++){
-      const collide = ends.some(e=> e.pj === j &&
-        starts.some(s=> s.pj === j + 1 && s.laneId === e.laneId && s.cross === e.cross));
-      if(collide) gapAfter[j] = Math.max(L.gapMain, need);
-    }
-  }
-  // 隣接フェーズをまたぐラベル付き接続にも、ラベルの前後に矢印の棒が出るよう間隔を広げる（要求1.2）
-  for(let j = 0; j < phases.length - 1; j++){
-    const spans = state.links.some(e=>{
-      if(!e.label) return false;
-      const A = state.nodes.find(n=> n.id === e.from), B = state.nodes.find(n=> n.id === e.to);
-      if(!A || !B) return false;
-      const ap = state.phases.length ? (A.phaseId || phases[0].id) : '__all';
-      const bp = state.phases.length ? (B.phaseId || phases[0].id) : '__all';
-      const aj = phases.findIndex(p=> p.id === ap), bj = phases.findIndex(p=> p.id === bp);
-      return (aj === j && bj === j + 1) || (aj === j + 1 && bj === j);
-    });
-    if(spans) gapAfter[j] = Math.max(gapAfter[j], 42);
-  }
-
-  // フェーズ内にラベル付きの接続があると、流れ方向の間隔を広げてラベルの前後に棒を出す（要求1.2）
-  const phaseGap = phases.map(p=>{
-    const has = state.links.some(e=>{
-      if(!e.label) return false;
-      const A = state.nodes.find(n=> n.id === e.from), B = state.nodes.find(n=> n.id === e.to);
-      if(!A || !B) return false;
-      const ap = state.phases.length ? (A.phaseId || phases[0].id) : '__all';
-      const bp = state.phases.length ? (B.phaseId || phases[0].id) : '__all';
-      return ap === p.id && bp === p.id;
-    });
-    return has ? Math.max(L.gapInner, 42) : L.gapInner;
-  });
-
-  const phaseBands = [];
-  let main = mainStart;
-  phases.forEach((p, j)=>{
-    const size = phaseRuns[j] * nodeMain + (phaseRuns[j] - 1) * phaseGap[j];
-    phaseBands.push({ phase:p, index:j, start:main, size });
-    main += size + gapAfter[j];
-  });
-  let mainTotal = main - L.gapMain + L.gapMain / 2 + trailPad;   // 末尾の終了●の分も確保（最終境界は既定gap）
-
-  const laneBands = [];
-  let cross = crossStart;
-  lanes.forEach((l, i)=>{
-    const size = laneRuns[i] * nodeCross + (laneRuns[i] + 1) * L.gapCross;
-    laneBands.push({ lane:l, index:i, start:cross, size });
-    cross += size;
-  });
-  const crossTotal = cross;
-
-  // 図形の矩形を決める
-  const boxes = [];
-  lanes.forEach((l, i)=>{
-    const band = laneBands[i];
-    phases.forEach((p, j)=>{
-      const list = cell.get(key(l.id, p.id)) || [];
-      list.forEach((n)=>{
-        const { flow: col, cross: row } = nodePos.get(n.id);
-        const mainPos  = phaseBands[j].start + col * (nodeMain + phaseGap[j]);
-        const crossPos = band.start + L.gapCross + row * (nodeCross + L.gapCross);
-        const slot = dir === 'LR'
-          ? { x: mainPos, y: crossPos, w: L.nodeW, h: L.nodeH }
-          : { x: crossPos, y: mainPos, w: L.nodeW, h: L.nodeH };
-        // ●は枠を小さくする。矢印は矩形の縁から引くので、ここを縮めないと線が離れて見える
-        const box = isDot(n.shape)
-          ? { x: slot.x + (slot.w - DOT_SIZE)/2, y: slot.y + (slot.h - DOT_SIZE)/2, w: DOT_SIZE, h: DOT_SIZE }
-          : slot;
-        boxes.push({ node:n, index: state.nodes.indexOf(n), ...box });
-      });
-    });
-  });
-
-  // 開始/終了の●を、接続先ノードの手前(左/上)・先(右/下)へ、交差軸を揃えて置く。
-  // ・開始●は接続先の左(LR)/上(TB)、終了●は右(LR)/下(TB)  … 仕様1・2
-  // ・交差軸(LRならy、TBならx)を接続先に合わせるので、矢印はまっすぐ引ける … 仕様3
-  const gridBoxes = boxes.slice();   // ●を足す前の図形だけ（重なり判定に使う）
-  const boxByNode = new Map(boxes.map(b=>[b.node, b]));
-  const dotBoxes = [];
-
-  // Place multiple start dots from one lane/phase as a single row (TB) or column (LR).
-  const startGroups = new Map();
-  dotPlace.forEach((anchor, dot)=>{
-    if(dot.shape !== 'startdot') return;
-    const laneId = anchor.laneId || (lanes[0] && lanes[0].id);
-    const phaseId = state.phases.length ? (anchor.phaseId || phases[0].id) : '__all';
-    const groupKey = laneId + '\u001f' + phaseId;
-    if(!startGroups.has(groupKey)) startGroups.set(groupKey, []);
-    startGroups.get(groupKey).push({ anchor, dot, laneId });
-  });
-  const startSlot = new Map();
-  startGroups.forEach(group=>{
-    if(group.length < 2) return;
-    group.sort((p, q)=> state.nodes.indexOf(p.dot) - state.nodes.indexOf(q.dot));
-    const anchorBoxes = group.map(g=>boxByNode.get(g.anchor)).filter(Boolean);
-    if(!anchorBoxes.length) return;
-    if(dir === 'TB'){
-      const y = Math.max(headerMain, Math.min(...anchorBoxes.map(ab=>ab.y - DOT_SLOT)));
-      group.forEach(g=>{
-        const ab = boxByNode.get(g.anchor);
-        startSlot.set(g.dot, { x:ab.x + (ab.w - DOT_SIZE)/2, y });
-      });
-    }else{
-      const x = Math.max(headerMain, Math.min(...anchorBoxes.map(ab=>ab.x - DOT_SLOT)));
-      group.forEach(g=>{
-        const ab = boxByNode.get(g.anchor);
-        startSlot.set(g.dot, { x, y:ab.y + (ab.h - DOT_SIZE)/2 });
-      });
-    }
-  });
-  dotPlace.forEach((a, d)=>{
-    const ab = boxByNode.get(a);
-    if(!ab) return;   // 接続先がグリッドに無い（通常は起きない）
-    let x, y;
-    const grouped = startSlot.get(d);
-    if(grouped){
-      ({ x, y } = grouped);
-    }else if(dir === 'LR'){
-      y = ab.y + (ab.h - DOT_SIZE)/2;
-      x = d.shape === 'startdot'
-        ? Math.max(headerMain, ab.x - DOT_SLOT)   // ヘッダーの帯には食い込ませない
-        : ab.x + ab.w + DOT_GAP;
-    }else{
-      x = ab.x + (ab.w - DOT_SIZE)/2;
-      y = d.shape === 'startdot'
-        ? Math.max(headerMain, ab.y - DOT_SLOT)
-        : ab.y + ab.h + DOT_GAP;
-    }
-    const db = { node:d, index: state.nodes.indexOf(d), x, y, w:DOT_SIZE, h:DOT_SIZE };
-    boxes.push(db); dotBoxes.push(db);
-  });
-
-  // ●が図形や他の●と重なるケース（別フェーズのフローが同じ列を共有する等）は、
-  // 交差軸方向へずらして重なりを消す。図形はグリッドで重ならないので、動かすのは●だけ。
-  // （要求: ノードは重ねない／別フェーズの開始・終了●が重ならないようにする）
-  const overlap = (a,b)=> Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x) > 0
-                        && Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y) > 0;
-  for(let pass = 0; pass < 6; pass++){
-    let moved = false;
-    dotBoxes.forEach(db=>{
-      const others = gridBoxes.concat(dotBoxes.filter(o=> o !== db));
-      for(let guard = 0; guard < 8; guard++){
-        const hit = others.find(o=> overlap(db, o));
-        if(!hit) break;
-        if(dir === 'LR'){   // 交差軸=y。●の中心が相手中心より上なら上へ、そうでなければ下へ逃がす
-          const up = (db.y + db.h/2) <= (hit.y + hit.h/2);
-          db.y = up ? hit.y - db.h - 4 : hit.y + hit.h + 4;
-        }else{              // 交差軸=x
-          const left = (db.x + db.w/2) <= (hit.x + hit.w/2);
-          db.x = left ? hit.x - db.w - 4 : hit.x + hit.w + 4;
-        }
-        moved = true;
-      }
-    });
-    if(!moved) break;
-  }
-
-  // フェーズ帯を、そのフェーズのノード＋●を含む範囲まで広げる（要求2）。
-  // ●は接続先(anchor)のフェーズに属するとみなし、流れ方向(TBは縦・LRは横)の範囲を測る。
-  if(phases.length){
-    const phaseIdOf = (n)=> state.phases.length ? (n.phaseId || phases[0].id) : '__all';
-    const dotPhase = new Map();
-    dotPlace.forEach((anchor, d)=> dotPhase.set(d, phaseIdOf(anchor)));
-    const lo = phases.map(()=> Infinity), hi = phases.map(()=> -Infinity);
-    boxes.forEach(b=>{
-      const pid = isDot(b.node.shape) ? dotPhase.get(b.node) : phaseIdOf(b.node);
-      const j = phases.findIndex(p=> p.id === pid);
-      if(j < 0) return;
-      const s = dir === 'LR' ? b.x : b.y, e = dir === 'LR' ? b.x + b.w : b.y + b.h;
-      lo[j] = Math.min(lo[j], s); hi[j] = Math.max(hi[j], e);
-    });
-    // 前の帯の終端を覚えておき、重ならないように順に確定する。
-    // ノードが無いフェーズは既定の幅（phaseRuns基準のサイズ）を保ったまま、位置だけ前の帯に合わせる。
-    let prevEnd = null;
-    phases.forEach((p, j)=>{
-      if(lo[j] === Infinity){
-        const s = prevEnd != null ? prevEnd + L.gapMain / 2 : phaseBands[j].start;
-        phaseBands[j].start = s;                    // size は既定値のまま変更しない
-        prevEnd = s + phaseBands[j].size;
-        return;
-      }
-      let s = lo[j] - 6, e = hi[j] + 6;
-      if(prevEnd != null) s = Math.max(s, (prevEnd + lo[j]) / 2);  // 直前とは中間で分ける
-      if(j === 0) s = Math.max(headerMain, s);
-      phaseBands[j].start = s;
-      phaseBands[j].size = Math.max(0, e - s);
-      prevEnd = e;
-    });
-    // 帯の拡張で末尾が伸びていれば、全体サイズもそれに合わせる（描画が切れないように）
-    const lastBand = phaseBands[phases.length - 1];
-    mainTotal = Math.max(mainTotal, lastBand.start + lastBand.size + trailPad + L.gapMain / 2);
-  }
-
-  const width  = dir === 'LR' ? mainTotal : crossTotal;
-  const height = dir === 'LR' ? crossTotal : mainTotal;
-
-  return {
-    dir, lanes, phases, hasPhaseHeader,
-    laneBands, phaseBands, boxes, orphans,
-    width: Math.max(width, 320),
-    height: Math.max(height, 160),
-    boxById: new Map(boxes.map(b=>[b.node.id, b])),
-  };
-}
-
-/* ============ SVG描画 ============ */
-function shapeElement(b, shape, fill){
-  const { x, y, w, h } = b;
-  const st = ` fill="${esc(fill)}" stroke="#42506B" stroke-width="1.6"`;
-  if(shape === 'startdot' || shape === 'enddot'){
-    const cx = x + w/2, cy = y + h/2;
-    const outer = `<circle class="sl-shape" cx="${cx}" cy="${cy}" r="${w/2}" fill="#42506B" stroke="#42506B" stroke-width="1.6"></circle>`;
-    // 終了は状態遷移図と同じく二重丸で表す
-    return shape === 'enddot'
-      ? outer + `<circle cx="${cx}" cy="${cy}" r="${w/2 - 4}" fill="#FFFFFF"></circle><circle cx="${cx}" cy="${cy}" r="${w/2 - 7}" fill="#42506B"></circle>`
-      : outer;
-  }
-  if(shape === 'decision'){
-    return `<polygon class="sl-shape" points="${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}"${st}></polygon>`;
-  }
-  if(shape === 'io'){
-    const s = 16;
-    return `<polygon class="sl-shape" points="${x+s},${y} ${x+w},${y} ${x+w-s},${y+h} ${x},${y+h}"${st}></polygon>`;
-  }
-  const r = (shape === 'start' || shape === 'end') ? h/2 : 7;
-  return `<rect class="sl-shape" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}"${st}></rect>`;
-}
-
-/* 折れ線で結ぶ。前後関係（流れ方向）に応じて経路を変える。
-   jogIdx: 他の線と重なったときに少しずつ経路をずらすための試行回数（0始まり）。
-   ctx.allowFarTo: 後退エッジで TO の右(TB)/下(LR) から入ってよいか
-     （FROMのレーンがTOより後ろ＝右/下にある、またはTOへの入次数が3本以上のときだけ true）。 */
-function linkPath(a, b, dir, jogIdx, ctx){
-  const ac = { x:a.x + a.w/2, y:a.y + a.h/2 };
-  const bc = { x:b.x + b.w/2, y:b.y + b.h/2 };
-  const jog = (jogIdx || 0) * 8;
-  const allowFarTo = !!(ctx && ctx.allowFarTo);
-  if(dir === 'LR'){
-    // 別レーンをまたぐ接続（前進・後退どちらも）は、レーンとレーンの間の隙間
-    // （ノードが絶対に無い帯）を通って短く行き来する。同じ列（同フェーズ）はこの後で個別に扱う。
-    if(ctx && ctx.gapCross != null && Math.abs(a.x - b.x) >= 1){
-      // 同じ隙間を通る他の辺と重ならないよう、隙間内での通り道も少しずつずらす。
-      const gyJog = jogIdx ? Math.ceil(jogIdx / 2) * 4 * (jogIdx % 2 ? 1 : -1) : 0;
-      const gy = ctx.gapCross + gyJog;
-      const clearX = b.x - 18 - jog;
-      if(b.x > a.x + a.w - 1){
-        // 前進: FROMの右辺（最優先）から出て、隙間を経由してTOの左辺へ入れる
-        const sx = a.x + a.w, nearX = sx + 14 + jog;
-        const d = `M ${sx} ${ac.y} H ${nearX} V ${gy} H ${clearX} V ${bc.y} H ${b.x}`;
-        return { d, tip:{ x:b.x, y:bc.y, dirn:'right' }, mid:{ x:clearX, y:(gy + bc.y)/2 } };
-      }
-      // 後退・横移動: FROMは隙間側の辺（上/下どちらでもよい）から出て、TOへは常に左辺から入る（要求2に整合）。
-      const exitBottom = gy > ac.y;
-      const exitY = exitBottom ? a.y + a.h : a.y;
-      const d = `M ${ac.x} ${exitY} V ${gy} H ${clearX} V ${bc.y} H ${b.x}`;
-      return { d, tip:{ x:b.x, y:bc.y, dirn:'right' }, mid:{ x:clearX, y:(exitY + gy)/2 } };
-    }
-    if(b.x > a.x + a.w - 1){                    // 前進（同じレーン）
-      const sx = a.x + a.w, ex = b.x;
-      const span = ex - sx;
-      const mx = span > 24 ? Math.min(Math.max((sx + ex) / 2 + jog, sx + 6), ex - 6) : (sx + ex) / 2;
-      return { d:`M ${sx} ${ac.y} H ${mx} V ${bc.y} H ${ex}`, tip:{ x:ex, y:bc.y, dirn:'right' },
-               mid:{ x:mx, y:(ac.y + bc.y)/2 } };
-    }
-    if(Math.abs(a.x - b.x) < 1){                // 同じフェーズ（レーン間）
-      if(bc.y > ac.y){                          // 下のレーンへ: TOの上辺へ入る（要求2）
-        const sy = a.y + a.h, ey = b.y;
-        return { d:`M ${ac.x} ${sy} V ${ey}`, tip:{ x:ac.x, y:ey, dirn:'down' }, mid:{ x:ac.x, y:(sy + ey)/2 } };
-      }
-      // 上のレーンへ戻る: 上（相手の側）へ出て左を回し、TOの左辺へ入れる（下辺から入れない。要求2）
-      const leftX = Math.min(a.x, b.x) - 22 - jog;
-      return { d:`M ${ac.x} ${a.y} V ${a.y - 18} H ${leftX} V ${bc.y} H ${b.x}`, tip:{ x:b.x, y:bc.y, dirn:'right' },
-               mid:{ x:leftX, y:(ac.y + bc.y)/2 } };
-    }
-    // 後退（差戻しなど、同じレーン）
-    if(allowFarTo){                             // FROMがTOより下のレーン、または3本以上入る: 下側を回り込みTOの下辺へ
-      const back = Math.max(a.y + a.h, b.y + b.h) + 22 + jog;
-      return { d:`M ${ac.x} ${a.y + a.h} V ${back} H ${bc.x} V ${b.y + b.h}`,
-               tip:{ x:bc.x, y:b.y + b.h, dirn:'up' }, mid:{ x:(ac.x + bc.x)/2, y:back } };
-    }
-    // それ以外: TOの下は使わず、上へ回り込んでTOの上辺へ入れる
-    // nearY/topY も少しずつずらせるようにし、同じ相手へ戻る複数の線が完全に重ならないようにする
-    const nearY = a.y + a.h + 14 + jog;
-    const leftX = Math.min(a.x, b.x) - 22 - jog;
-    const topY = Math.min(a.y, b.y) - 18 - jog;
-    return { d:`M ${ac.x} ${a.y + a.h} V ${nearY} H ${leftX} V ${topY} H ${bc.x} V ${b.y}`,
-             tip:{ x:bc.x, y:b.y, dirn:'down' }, mid:{ x:leftX, y:(nearY + topY)/2 } };
-  }
-  // TB: 流れは上→下、レーンは左右
-  // 別レーンをまたぐ接続（前進・後退どちらも）は、レーンとレーンの間の隙間
-  // （ノードが絶対に無い帯）を通って短く行き来する。同じ行（同フェーズ）はこの後で個別に扱う。
-  if(ctx && ctx.gapCross != null && Math.abs(a.y - b.y) >= 1){
-    // 同じ隙間を通る他の辺と重ならないよう、隙間内での通り道も少しずつずらす。
-    const gxJog = jogIdx ? Math.ceil(jogIdx / 2) * 4 * (jogIdx % 2 ? 1 : -1) : 0;
-    const gx = ctx.gapCross + gxJog;
-    const clearY = b.y - 18 - jog;
-    if(b.y > a.y + a.h - 1){
-      // 前進: FROMの下辺（最優先）から出て、隙間を経由してTOの上辺へ入れる
-      const sy = a.y + a.h, nearY = sy + 14 + jog;
-      const d = `M ${ac.x} ${sy} V ${nearY} H ${gx} V ${clearY} H ${bc.x} V ${b.y}`;
-      return { d, tip:{ x:bc.x, y:b.y, dirn:'down' }, mid:{ x:gx, y:(clearY + b.y)/2 } };
-    }
-    // 後退・横移動: FROMは隙間側の辺（右/左どちらでもよい）から出て、TOへは常に上辺から入る（要求2に整合）。
-    const exitRight = gx > ac.x;
-    const exitX = exitRight ? a.x + a.w : a.x;
-    const d = `M ${exitX} ${ac.y} H ${gx} V ${clearY} H ${bc.x} V ${b.y}`;
-    return { d, tip:{ x:bc.x, y:b.y, dirn:'down' }, mid:{ x:gx, y:(ac.y + clearY)/2 } };
-  }
-  if(b.y > a.y + a.h - 1){                      // 前進（同じレーン）
-    const sy = a.y + a.h, ey = b.y;
-    const span = ey - sy;
-    const my = span > 24 ? Math.min(Math.max((sy + ey) / 2 + jog, sy + 6), ey - 6) : (sy + ey) / 2;
-    return { d:`M ${ac.x} ${sy} V ${my} H ${bc.x} V ${ey}`, tip:{ x:bc.x, y:ey, dirn:'down' },
-             mid:{ x:(ac.x + bc.x)/2, y:my } };
-  }
-  if(Math.abs(a.y - b.y) < 1){
-    if(bc.x > ac.x){                            // 右のレーンへ: TOの左辺へ入る（要求2）
-      const sx = a.x + a.w, ex = b.x;
-      return { d:`M ${sx} ${ac.y} H ${ex}`, tip:{ x:ex, y:ac.y, dirn:'right' }, mid:{ x:(sx + ex)/2, y:ac.y } };
-    }
-    // 左のレーンへ戻る: 左（相手の側）へ出て上を回し、TOの上辺へ入れる（右辺から入れない。要求2）
-    const topY = Math.min(a.y, b.y) - 22 - jog;
-    return { d:`M ${a.x} ${ac.y} H ${a.x - 18} V ${topY} H ${bc.x} V ${b.y}`, tip:{ x:bc.x, y:b.y, dirn:'down' },
-             mid:{ x:(a.x - 18 + bc.x)/2, y:topY } };
-  }
-  // 後退（差戻しなど、同じレーン）
-  if(allowFarTo){                               // FROMがTOより右のレーン、または3本以上入る: 右側を回り込みTOの右辺へ
-    const back = Math.max(a.x + a.w, b.x + b.w) + 22 + jog;
-    return { d:`M ${a.x + a.w} ${ac.y} H ${back} V ${bc.y} H ${b.x + b.w}`,
-             tip:{ x:b.x + b.w, y:bc.y, dirn:'left' }, mid:{ x:back, y:(ac.y + bc.y)/2 } };
-  }
-  // それ以外: TOの右は使わず、左へ回り込んでTOの左辺へ入れる
-  // nearX/topY も少しずつずらせるようにし、同じ相手へ戻る複数の線が完全に重ならないようにする
-  const nearX = a.x + a.w + 14 + jog;
-  const leftX = Math.min(a.x, b.x) - 22 - jog;
-  const topY = Math.min(a.y, b.y) - 18 - jog;
-  return { d:`M ${a.x + a.w} ${ac.y} H ${nearX} V ${topY} H ${leftX} V ${bc.y} H ${b.x}`,
-           tip:{ x:b.x, y:bc.y, dirn:'right' }, mid:{ x:leftX, y:(topY + bc.y)/2 } };
-}
-
-function arrowHead(tip){
-  const s = 7;
-  const { x, y, dirn } = tip;
-  const pts = {
-    right: `${x},${y} ${x-s},${y-s*0.62} ${x-s},${y+s*0.62}`,
-    left:  `${x},${y} ${x+s},${y-s*0.62} ${x+s},${y+s*0.62}`,
-    down:  `${x},${y} ${x-s*0.62},${y-s} ${x+s*0.62},${y-s}`,
-    up:    `${x},${y} ${x-s*0.62},${y+s} ${x+s*0.62},${y+s}`,
-  }[dirn];
-  return `<polygon class="sl-arrow" points="${pts}" fill="#42506B"></polygon>`;
-}
-
-/* ---- エッジ経路の補助（分岐の角出し・ノード回避） ---- */
-/* 直交線分(水平/垂直)が矩形を貫くか。端で触れる程度は許容し、明確に貫くものだけ true。 */
-function segHitsBox(x1, y1, x2, y2, box){
-  const m = 2, bx0 = box.x + m, bx1 = box.x + box.w - m, by0 = box.y + m, by1 = box.y + box.h - m;
-  if(x1 === x2){
-    if(x1 <= bx0 || x1 >= bx1) return false;
-    const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
-    return hi > by0 && lo < by1;
-  }
-  if(y1 === y2){
-    if(y1 <= by0 || y1 >= by1) return false;
-    const lo = Math.min(x1, x2), hi = Math.max(x1, x2);
-    return hi > bx0 && lo < bx1;
-  }
-  return false;
-}
-/* "M x y (H x | V y)*" 形式の経路を線分に分け、いずれかのノードを貫くか調べる。 */
-function pathHitsBoxes(d, boxes){
-  const t = d.split(/\s+/);
-  let x = 0, y = 0, px = 0, py = 0;
-  for(let i = 0; i < t.length; i++){
-    const c = t[i];
-    if(c === 'M'){ x = +t[++i]; y = +t[++i]; px = x; py = y; }
-    else if(c === 'H'){ px = x; x = +t[++i]; if(boxes.some(b=> segHitsBox(px, y, x, y, b))) return true; }
-    else if(c === 'V'){ py = y; y = +t[++i]; if(boxes.some(b=> segHitsBox(x, py, x, y, b))) return true; }
-  }
-  return false;
-}
-/* 分岐(ひし形)の指定した角から線を出す経路（要求4）。jogIdx で他の線との重なりを少しずらす。 */
-function cornerRoute(a, b, dir, corner, jogIdx){
-  const jog = (jogIdx || 0) * 6;
-  const acx = a.x + a.w/2, acy = a.y + a.h/2, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
-  if(dir === 'TB'){
-    if(corner === 'bottom'){
-      const sy = a.y + a.h, ey = b.y;
-      const span = ey - sy;
-      const my = span > 24 ? Math.min(Math.max((sy + ey) / 2 + jog, sy + 6), ey - 6) : (sy + ey) / 2;
-      return { d:`M ${acx} ${sy} V ${my} H ${bcx} V ${ey}`, tip:{ x:bcx, y:ey, dirn:'down' }, mid:{ x:(acx+bcx)/2, y:my } };
-    }
-    // 左右の角: 横へ出てから相手の上辺へ入れる（TOは上から接続）。
-    // 相手が明確に横にあれば まっすぐ横→下。真下寄りなら 横のチャネルを下ってから中心へ戻る。
-    const right = corner === 'right';
-    const sx = right ? a.x + a.w : a.x;
-    const offset = right ? (bcx - acx) : (acx - bcx);
-    if(offset > a.w / 2){
-      return { d:`M ${sx} ${acy} H ${bcx} V ${b.y}`, tip:{ x:bcx, y:b.y, dirn:'down' }, mid:{ x:(sx + bcx)/2, y:acy } };
-    }
-    const chx = right ? sx + 18 + jog : sx - 18 - jog;
-    return { d:`M ${sx} ${acy} H ${chx} V ${b.y - 12} H ${bcx} V ${b.y}`, tip:{ x:bcx, y:b.y, dirn:'down' }, mid:{ x:chx, y:(acy + b.y)/2 } };
-  }
-  if(corner === 'right'){          // LR の前進はまっすぐ右へ（TOの左辺へ入る）
-    const sx = a.x + a.w, ex = b.x;
-    const span = ex - sx;
-    const mx = span > 24 ? Math.min(Math.max((sx + ex) / 2 + jog, sx + 6), ex - 6) : (sx + ex) / 2;
-    return { d:`M ${sx} ${acy} H ${mx} V ${bcy} H ${ex}`, tip:{ x:ex, y:bcy, dirn:'right' }, mid:{ x:mx, y:(acy+bcy)/2 } };
-  }
-  // 上下の角(LR): 縦へ出てから相手の左辺へ入れる（TOは左から接続）。
-  const bottom = corner === 'bottom';
-  const sy = bottom ? a.y + a.h : a.y;
-  const offset = bottom ? (bcy - acy) : (acy - bcy);
-  if(offset > a.h / 2){
-    return { d:`M ${acx} ${sy} V ${bcy} H ${b.x}`, tip:{ x:b.x, y:bcy, dirn:'right' }, mid:{ x:acx, y:(sy + bcy)/2 } };
-  }
-  const chy = bottom ? sy + 18 + jog : sy - 18 - jog;
-  return { d:`M ${acx} ${sy} V ${chy} H ${b.x - 12} V ${bcy} H ${b.x}`, tip:{ x:b.x, y:bcy, dirn:'right' }, mid:{ x:(acx + b.x)/2, y:chy } };
-}
-/* ノードを貫く経路を、横のチャネルに逃がして迂回する（要求3）。避けられなければ null。
-   ctx.allowFarTo が偽なら、TOの右(TB)/下(LR)から入る側の経路は最後の手段としてのみ試す。 */
-function detourRoute(a, b, dir, boxes, jogIdx, ctx){
-  const idx = jogIdx || 0;
-  const pad = 20 + idx * 8;
-  const allowFarTo = !!(ctx && ctx.allowFarTo);
-  if(dir === 'TB'){
-    // 出口をFROMの中心から少しずらす。他の辺（分岐の下角出しなど）と同じ点から出て
-    // 重なるのを防ぐため、やり直すたびに逆向き・大きめに振る。
-    const nudge = idx ? Math.min(a.w/2 - 12, Math.ceil(idx/2) * 10) * (idx % 2 ? 1 : -1) : 0;
-    const acx = a.x + a.w/2 + nudge, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
-    // band: 出口の高さ〜TOの高さの間（前進・後退どちらでも成り立つよう min/max で範囲を取る）
-    const sy = a.y + a.h;
-    const yLo = Math.min(sy, b.y), yHi = Math.max(sy, b.y);
-    const band = boxes.filter(o=> o.y < yHi && o.y + o.h > yLo);
-    const rx = Math.max(a.x + a.w, b.x + b.w, ...band.map(o=> o.x + o.w)) + pad;
-    const lx = Math.min(a.x, b.x, ...band.map(o=> o.x)) - pad;
-    const order = allowFarTo ? [rx, lx] : [lx, rx];
-    // 同じ高さから出る他の辺と退避行が重なるのを避けるため、退避の高さも試行ごとにずらす
-    const escY = sy + 14 + idx * 10;
-    for(const chx of order){
-      const enterR = chx > bcx, ex = enterR ? b.x + b.w : b.x;
-      const d = `M ${acx} ${sy} V ${escY} H ${chx} V ${bcy} H ${ex}`;
-      if(!pathHitsBoxes(d, boxes)) return { d, tip:{ x:ex, y:bcy, dirn: enterR ? 'left' : 'right' }, mid:{ x:chx, y:(sy + bcy)/2 } };
-    }
-  }else{
-    const nudge = idx ? Math.min(a.h/2 - 12, Math.ceil(idx/2) * 10) * (idx % 2 ? 1 : -1) : 0;
-    const acy = a.y + a.h/2 + nudge, bcx = b.x + b.w/2, bcy = b.y + b.h/2;
-    // band: 出口の位置〜TOの位置の間（前進・後退どちらでも成り立つよう min/max で範囲を取る）
-    const sx = a.x + a.w;
-    const xLo = Math.min(sx, b.x), xHi = Math.max(sx, b.x);
-    const band = boxes.filter(o=> o.x < xHi && o.x + o.w > xLo);
-    const by = Math.max(a.y + a.h, b.y + b.h, ...band.map(o=> o.y + o.h)) + pad;
-    const ty = Math.min(a.y, b.y, ...band.map(o=> o.y)) - pad;
-    const order = allowFarTo ? [by, ty] : [ty, by];
-    // 同じ位置から出る他の辺と退避列が重なるのを避けるため、退避の位置も試行ごとにずらす
-    const escX = sx + 14 + idx * 10;
-    for(const chy of order){
-      const enterB = chy > bcy, ey = enterB ? b.y + b.h : b.y;
-      const d = `M ${sx} ${acy} H ${escX} V ${chy} H ${bcx} V ${ey}`;
-      if(!pathHitsBoxes(d, boxes)) return { d, tip:{ x:bcx, y:ey, dirn: enterB ? 'up' : 'down' }, mid:{ x:(sx + bcx)/2, y:chy } };
-    }
-  }
-  return null;
-}
-/* 経路(d)を線分の配列に分解する。重なり検出に使う。 */
-function pathSegmentsOf(d){
-  const t = d.split(/\s+/);
-  let x = 0, y = 0;
-  const segs = [];
-  for(let i = 0; i < t.length; i++){
-    const c = t[i];
-    if(c === 'M'){ x = +t[++i]; y = +t[++i]; }
-    else if(c === 'H'){ const nx = +t[++i]; segs.push([x, y, nx, y]); x = nx; }
-    else if(c === 'V'){ const ny = +t[++i]; segs.push([x, y, x, ny]); y = ny; }
-  }
-  return segs;
-}
-/* 2つの線分が同一直線上で重なる長さ（重ならない・平行でなければ0）。 */
-function collinearOverlapLen(s1, s2){
-  const [a1,b1,a2,b2] = s1, [c1,d1,c2,d2] = s2;
-  const v1 = a1 === a2, v2 = c1 === c2;
-  if(v1 && v2 && a1 === c1){
-    const lo = Math.max(Math.min(b1,b2), Math.min(d1,d2));
-    const hi = Math.min(Math.max(b1,b2), Math.max(d1,d2));
-    return Math.max(0, hi - lo);
-  }
-  if(!v1 && !v2 && b1 === d1){
-    const lo = Math.max(Math.min(a1,a2), Math.min(c1,c2));
-    const hi = Math.min(Math.max(a1,a2), Math.max(c1,c2));
-    return Math.max(0, hi - lo);
-  }
-  return 0;
-}
-
-/* 図形内のラベルを折り返して <tspan> にする（SVGは自動折り返ししないため） */
-function wrapLabel(text, maxChars, maxLines){
-  const words = String(text || '').split(/(\s+)/).filter(w=>w.trim() !== '' || w === ' ');
-  const lines = [];
-  let cur = '';
-  const push = ()=>{ if(cur){ lines.push(cur); cur = ''; } };
-  const width = (s)=> [...s].reduce((n,ch)=> n + (/[\x00-\xff]/.test(ch) ? 1 : 2), 0);
-  for(const w of words){
-    if(width(cur + w) > maxChars && cur){ push(); }
-    if(width(w) > maxChars){
-      for(const ch of w){
-        if(width(cur + ch) > maxChars){ push(); }
-        cur += ch;
-      }
-    }else{
-      cur += w;
-    }
-    if(lines.length >= maxLines) break;
-  }
-  push();
-  if(lines.length > maxLines){
-    lines.length = maxLines;
-    lines[maxLines-1] = lines[maxLines-1].slice(0, Math.max(1, lines[maxLines-1].length - 1)) + '…';
-  }
-  return lines.length ? lines : [''];
-}
-
-function drawSvg(){
-  const lay = computeLayout();
-  const pad = 14;
-  const titleH = state.title ? 34 : 0;
-
-  // 分岐(ひし形)の出力を別々の角から出す（要求4）。前進する出力が2〜3本のときだけ割り当てる。
-  const cornerMap = new Map();   // link index -> 角
-  {
-    const bySrc = new Map();
-    state.links.forEach((e, i)=>{
-      const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
-      if(!a || !b || a.node.shape !== 'decision') return;
-      const fwd = lay.dir === 'TB' ? (b.y > a.y + a.h - 1) : (b.x > a.x + a.w - 1);
-      if(!fwd) return;
-      if(!bySrc.has(e.from)) bySrc.set(e.from, []);
-      bySrc.get(e.from).push({ i, a, b });
-    });
-    const CORN = lay.dir === 'TB' ? ['bottom', 'right', 'left'] : ['right', 'bottom', 'top'];
-    bySrc.forEach(list=>{
-      if(list.length < 2 || list.length > 3) return;   // 3つ以内のときだけ角出し（4つ以上は既定のまま）
-      list.sort((p, q)=>{
-        const pf = lay.dir === 'TB' ? p.b.y : p.b.x, qf = lay.dir === 'TB' ? q.b.y : q.b.x;
-        if(pf !== qf) return pf - qf;
-        const pc = lay.dir === 'TB' ? p.b.x : p.b.y, qc = lay.dir === 'TB' ? q.b.x : q.b.y;
-        return pc - qc;
-      });
-      list.forEach((it, k)=> cornerMap.set(it.i, CORN[k]));
-    });
-  }
-
-  // FROM/TOの辺ルール判定用: レーンの前後関係と、ノードごとの出次数・入次数
-  // ・TB: TOの右から入るのは「FROMのレーンがTOより右」または「TOへの入次数が3本以上」のときだけ許可
-  // ・LR: TOの下から入るのは「FROMのレーンがTOより下」または「TOへの入次数が3本以上」のときだけ許可
-  // ・同じレーン内で下から戻る（差戻しなど）場合も、TO右/下から入ってよいとする（FROMが下＝同じレーン）
-  const laneIdxOf = new Map(lay.lanes.map((l, idx)=> [l.id, idx]));
-  const resolveLane = (n)=> n.laneId || (lay.lanes[0] && lay.lanes[0].id);
-  const inCount = new Map();
-  state.links.forEach(e=> inCount.set(e.to, (inCount.get(e.to) || 0) + 1));
-
-  // 接続の経路をすべて先に確定する（重なりを検出したら少しずつずらす。
-  // 要求: 交差は許容するが線の完全な重なりは避ける）。キャンバスサイズを決める前に必要。
-  const placedSegs = [];
-  const linkRenders = state.links.map((e, i)=>{
-    const a = lay.boxById.get(e.from), b = lay.boxById.get(e.to);
-    if(!a || !b) return null;
-    const corner = cornerMap.get(i);
-    const laneA = laneIdxOf.get(resolveLane(a.node)), laneB = laneIdxOf.get(resolveLane(b.node));
-    const allowFarTo = (laneA != null && laneB != null && laneA >= laneB) || (inCount.get(e.to) || 0) >= 3;
-    // 別レーンをまたぐ接続用: レーン境界のすぐ内側（ノード列と境界線の間の余白）のクロス軸座標。
-    // レーン帯どうしは隙間なく隣接している（境界＝線そのもの）ため、境界線上を通ると
-    // レーンの区切り線と重なって見える。境界からノード列側へ少し入った余白の中央を使う。
-    let gapCross = null;
-    if(laneA != null && laneB != null && laneA !== laneB){
-      const bandA = lay.laneBands[laneA];
-      if(laneB > laneA){
-        gapCross = bandA.start + bandA.size - LAYOUT.gapCross / 2;
-      }else{
-        gapCross = bandA.start + LAYOUT.gapCross / 2;
-      }
-    }
-    const ctx = { allowFarTo, gapCross };
-    const obst = lay.boxes.filter(x=> x.node.id !== e.from && x.node.id !== e.to);
-    // 各試行を「貫通なし」を最優先、「線の重なりなし」を次点にスコアリングして最良のものを採用する。
-    // 単に重なりが無いことだけを基準にすると、貫通しているのにたまたま他の線と重ならない
-    // 経路を選んでしまうことがあるため（要求3が要求4より優先）。
-    let best = null, bestScore = -1, bestMid = null;
-    for(let attempt = 0; attempt < 6 && bestScore < 3; attempt++){
-      let p = corner ? cornerRoute(a, b, lay.dir, corner, attempt) : linkPath(a, b, lay.dir, attempt, ctx);
-      // 要求3: ノードを貫くなら、チャネルへ逃がして迂回する
-      if(pathHitsBoxes(p.d, obst)){
-        const dp = detourRoute(a, b, lay.dir, obst, attempt, ctx);
-        if(dp) p = dp;
-      }
-      const stillHits = pathHitsBoxes(p.d, obst);
-      // 最後の区間（TOへ入る直前）は複数の矢印が同じ点に収束するのが普通なので、重なり判定から除く
-      const midSegs = pathSegmentsOf(p.d).slice(0, -1);
-      const hasOverlap = midSegs.some(s1=> placedSegs.some(s2=> collinearOverlapLen(s1, s2) > 8));
-      const score = (stillHits ? 0 : 2) + (hasOverlap ? 0 : 1);
-      if(score > bestScore){ bestScore = score; best = p; bestMid = midSegs; }
-    }
-    placedSegs.push(...bestMid);
-    return { e, i, p: best };
-  });
-
-  // 経路がノードの並び（lay.width/height）よりはみ出すことがある（隙間を通る経路など）。
-  // はみ出した分だけキャンバスを広げ、負の座標が出た場合は原点をずらして描画が切れないようにする。
-  let minX = 0, minY = 0, maxX = lay.width, maxY = lay.height;
-  linkRenders.forEach(item=>{
-    if(!item) return;
-    pathSegmentsOf(item.p.d).forEach(([x1, y1, x2, y2])=>{
-      minX = Math.min(minX, x1, x2); maxX = Math.max(maxX, x1, x2);
-      minY = Math.min(minY, y1, y2); maxY = Math.max(maxY, y1, y2);
-    });
-  });
-  const shiftX = -Math.min(0, minX), shiftY = -Math.min(0, minY);
-  const W = (maxX + shiftX) + pad * 2;
-  const H = (maxY + shiftY) + pad * 2 + titleH;
-
-  const out = [];
-  out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Inter, 'Yu Gothic UI', 'Meiryo UI', sans-serif">`);
-  out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF"></rect>`);
-  if(state.title){
-    out.push(`<text x="${W/2}" y="24" text-anchor="middle" font-size="16" font-weight="700" fill="#16233A">${esc(state.title)}</text>`);
-  }
-  out.push(`<g transform="translate(${pad + shiftX}, ${pad + titleH + shiftY})">`);
-
-  // レーンの帯と見出し
-  lay.laneBands.forEach(band=>{
-    const l = band.lane;
-    const fill = l.color || '#F7F9FB';
-    if(lay.dir === 'LR'){
-      out.push(`<g data-pick="lane" data-idx="${state.lanes.indexOf(l)}">`);
-      out.push(`<rect class="sl-shape" x="0" y="${band.start}" width="${lay.width}" height="${band.size}" fill="${esc(fill)}" fill-opacity="0.55" stroke="#B9C7DA"></rect>`);
-      out.push(`<rect x="0" y="${band.start}" width="${LAYOUT.laneHeaderW}" height="${band.size}" fill="${esc(fill)}" stroke="#B9C7DA"></rect>`);
-      wrapLabel(l.label, 14, 3).forEach((ln, i, all)=>{
-        const y = band.start + band.size/2 + (i - (all.length-1)/2) * 15 + 5;
-        out.push(`<text x="${LAYOUT.laneHeaderW/2}" y="${y}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#16233A">${esc(ln)}</text>`);
-      });
-      out.push(`</g>`);
-    }else{
-      out.push(`<g data-pick="lane" data-idx="${state.lanes.indexOf(l)}">`);
-      out.push(`<rect class="sl-shape" x="${band.start}" y="0" width="${band.size}" height="${lay.height}" fill="${esc(fill)}" fill-opacity="0.55" stroke="#B9C7DA"></rect>`);
-      out.push(`<rect x="${band.start}" y="0" width="${band.size}" height="${LAYOUT.phaseHeaderH}" fill="${esc(fill)}" stroke="#B9C7DA"></rect>`);
-      out.push(`<text x="${band.start + band.size/2}" y="${LAYOUT.phaseHeaderH/2 + 5}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#16233A">${esc(l.label)}</text>`);
-      out.push(`</g>`);
-    }
-  });
-
-  // フェーズの見出し
-  if(lay.hasPhaseHeader){
-    lay.phaseBands.forEach(pb=>{
-      const idx = state.phases.indexOf(pb.phase);
-      if(lay.dir === 'LR'){
-        out.push(`<g data-pick="phase" data-idx="${idx}">`);
-        out.push(`<rect class="sl-shape" x="${pb.start}" y="0" width="${pb.size}" height="${LAYOUT.phaseHeaderH}" fill="#EEF4FB" stroke="#B9C7DA"></rect>`);
-        out.push(`<text x="${pb.start + pb.size/2}" y="${LAYOUT.phaseHeaderH/2 + 5}" text-anchor="middle" font-size="12" font-weight="700" fill="#3C516C">${esc(pb.phase.label)}</text>`);
-        out.push(`</g>`);
-      }else{
-        out.push(`<g data-pick="phase" data-idx="${idx}">`);
-        out.push(`<rect class="sl-shape" x="0" y="${pb.start}" width="${LAYOUT.laneHeaderW}" height="${pb.size}" fill="#EEF4FB" stroke="#B9C7DA"></rect>`);
-        out.push(`<text x="${LAYOUT.laneHeaderW/2}" y="${pb.start + pb.size/2 + 5}" text-anchor="middle" font-size="12" font-weight="700" fill="#3C516C">${esc(pb.phase.label)}</text>`);
-        out.push(`</g>`);
-      }
-    });
-  }
-
-  linkRenders.forEach(item=>{
-    if(!item) return;
-    const { e, i, p } = item;
-    const dash = e.style === 'dashed' ? ' stroke-dasharray="6 4"' : '';
-    out.push(`<g>`);
-    out.push(`<path class="sl-hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="14" data-pick="link" data-idx="${i}"></path>`);
-    out.push(`<path d="${p.d}" fill="none" stroke="#42506B" stroke-width="1.6"${dash} data-pick="link" data-idx="${i}"></path>`);
-    out.push(arrowHead(p.tip));
-    if(e.label){
-      const tw = [...e.label].reduce((n,ch)=> n + (/[\x00-\xff]/.test(ch) ? 6 : 11), 0) + 10;
-      out.push(`<rect x="${p.mid.x - tw/2}" y="${p.mid.y - 9}" width="${tw}" height="18" rx="4" fill="#FFFFFF" stroke="#D3E1EF" data-pick="link" data-idx="${i}"></rect>`);
-      out.push(`<text x="${p.mid.x}" y="${p.mid.y + 4}" text-anchor="middle" font-size="11" fill="#3C516C" data-pick="link" data-idx="${i}">${esc(e.label)}</text>`);
-    }
-    out.push(`</g>`);
-  });
-
-  // 図形
-  lay.boxes.forEach(b=>{
-    const n = b.node;
-    const fill = n.color || '#FFFFFF';
-    out.push(`<g data-pick="node" data-idx="${b.index}">`);
-    out.push(shapeElement(b, n.shape, fill));
-    if(isDot(n.shape)){
-      // ●の中には文字を入れず、ラベルがあるときだけ真下に添える
-      if(n.label){
-        out.push(`<text x="${b.x + b.w/2}" y="${b.y + b.h + 13}" text-anchor="middle" font-size="11" fill="#3C516C">${esc(n.label)}</text>`);
-      }
-    }else{
-      const lines = wrapLabel(n.label, n.shape === 'decision' ? 12 : 16, 3);
-      lines.forEach((ln, i)=>{
-        const y = b.y + b.h/2 + (i - (lines.length-1)/2) * 15 + 5;
-        out.push(`<text x="${b.x + b.w/2}" y="${y}" text-anchor="middle" font-size="12" fill="#16233A">${esc(ln)}</text>`);
-      });
-    }
-    out.push(`</g>`);
-  });
-
-  out.push(`</g></svg>`);
-  return out.join('');
-}
+/* ============ レイアウト計算・SVG描画 ============
+   グリッド配置とSVG生成もライブラリ（Swimlane.computeLayout / .drawSvg）に委譲する。 */
 
 /* ============ プレビュー描画 ============ */
 function renderPreview(){
@@ -1927,7 +832,7 @@ function renderPreview(){
     return;
   }
   try{
-    target.innerHTML = drawSvg();
+    target.innerHTML = Swimlane.drawSvg(state);
     applyZoom();
   }catch(err){
     target.innerHTML = `<div class="preview-error">描画エラー:\n${esc(err && err.message ? err.message : err)}</div>`;
@@ -1953,7 +858,7 @@ function regenerateCode(){
     document.getElementById('editToggle').checked = false;
     document.getElementById('codeArea').readOnly = true;
   }
-  document.getElementById('codeArea').value = generateCode();
+  document.getElementById('codeArea').value = Swimlane.generate(state);
   scheduleRender();
 }
 
@@ -2508,7 +1413,7 @@ document.getElementById('fileInput').addEventListener('change', e=>{
   if(!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    const { state: next, errors } = parseCode(String(reader.result));
+    const { state: next, errors } = Swimlane.parse(String(reader.result));
     if(errors.length && !next.lanes.length && !next.nodes.length){
       alert('読み込めませんでした:\n' + errors.slice(0,5).join('\n'));
       return;
@@ -2573,7 +1478,7 @@ document.getElementById('editToggle').addEventListener('change', e=>{
 });
 document.getElementById('codeArea').addEventListener('input', ()=>{
   if(!manualMode) return;
-  const { state: next, errors } = parseCode(document.getElementById('codeArea').value);
+  const { state: next, errors } = Swimlane.parse(document.getElementById('codeArea').value);
   if(errors.length){ showParseErrors(errors); return; }
   Object.assign(state, next, {
     editLaneIdx:null, editPhaseIdx:null, editNodeIdx:null, editLinkIdx:null,
