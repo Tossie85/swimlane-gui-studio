@@ -1,0 +1,13 @@
+# .vsix に含めないもの。
+# media/ は build/make-webview.mjs（vscode:prepublish）が生成する実行時アセットなので含める。
+
+build/**
+.vscode/**
+.htaccess
+DEVELOPMENT.md
+PUBLISHING.md
+resources/icon.marketplace.svg
+_webview_preview/**
+**/*.map
+.gitignore
+.editorconfig

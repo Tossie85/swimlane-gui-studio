@@ -1,0 +1,83 @@
+{
+  "name": "swimlane-gui-studio",
+  "displayName": "Swimlane GUI Studio",
+  "description": "スイムレーン図（業務フロー図）をGUIで組み立て、.swim コードを取り込めるエディタ。",
+  "version": "0.1.0",
+  "publisher": "tossie85",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "homepage": "https://tossie85.site/tools/swimlane-gui-studio.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tossie85/tossie85.site.git",
+    "directory": "vscode-extensions/swimlane"
+  },
+  "bugs": {
+    "url": "https://github.com/Tossie85/tossie85.site/issues"
+  },
+  "keywords": [
+    "swimlane",
+    "diagram",
+    "flowchart",
+    "business process",
+    "gui"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onCommand:swimlaneGuiStudio.open",
+    "onView:swimlaneGuiStudio.launcher"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "swimlaneGuiStudio.open",
+        "title": "Swimlane GUI Studio を開く",
+        "category": "Swimlane GUI Studio",
+        "icon": "$(add)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "swimlaneGuiStudio",
+          "title": "Swimlane GUI Studio",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "swimlaneGuiStudio": [
+        {
+          "id": "swimlaneGuiStudio.launcher",
+          "name": "図を作る"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "swimlaneGuiStudio.launcher",
+        "contents": "レーン（担当）とフェーズ（工程）の交点にタスクを置く、スイムレーン図（業務フロー図）を GUI で組み立てられます。\n既存の .swim コードを取り込んで続きを編集することもできます。\n[エディタで開く](command:swimlaneGuiStudio.open)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "swimlaneGuiStudio.open",
+          "when": "view == swimlaneGuiStudio.launcher",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node build/make-webview.mjs",
+    "vscode:prepublish": "node build/make-webview.mjs"
+  }
+}
