@@ -34,6 +34,54 @@
     --text-ink:#16233A;
     --text-soft:#5B6B84;
     --danger:#E8637A;
+    --text-strong:#10233F;
+    --text-on-warn:#0A1830;
+    /* 「編集をキャンセル」の地。白文字を載せるので、4.5を満たす濃さにしてある */
+    --surface-cancel:#5F6E82;
+    /* アクセント（シアン）を淡い面の「文字」に使うときの濃い版。
+       --cyan-dim をそのまま文字に使うと白いカードの上で 2.5〜2.8 しかない */
+    --accent-ink:#0F6070;
+    /* 本文中のリンク。既定の青は暗い面で読めないのでトークンにする */
+    --link:var(--accent-ink);
+    /* 濃い面に載る危険色。--danger は暗い地の上だと 4.14 で足りない */
+    --danger-on-dark:#F2A0B0;
+    --surface-card:#FFFFFF;
+    --surface-input:#FAFBFD;
+    --surface-canvas:#FBFCFE;
+    /* キャンバスを「自動」にしたときの地。拡張ではエディタの背景に差し替える */
+    --surface-canvas-auto:#FBFCFE;
+    /* キャンバスの地に直接載る文字。applyCanvasBg() が地の明暗から入れ替える */
+    --text-on-canvas:#5B6B84;
+    --surface-subtle:#F0F3F7;
+    --surface-note:#F7F9FB;
+    --surface-overlay:rgba(255,255,255,.93);
+    --overlay-veil:rgba(10,24,48,0.55);
+    --shadow-soft:rgba(16,35,63,.14);
+    --shadow-strong:rgba(0,0,0,0.35);
+    --shadow-drop:rgba(10,24,48,0.35);
+    --text-on-dark:#EAF2FA;
+    --text-on-dark-dim:#9AB0C9;
+    --text-on-dark-strong:#FFFFFF;
+    --text-faint:#A9B6C6;
+    --border-strong:#CBD6E4;
+    --border-soft:#E1E8F0;
+    --border-dashed:#B9C7DA;
+    --border-note:#D3DEEA;
+    --border-swatch:#999999;
+    --scrollbar-thumb:#C7D2DF;
+    --accent-tint:#E3F6FA;
+    --accent-tint-soft:#EDF6F9;
+    --accent-tint-strong:#E1F1F5;
+    --accent-border:#D5E7EC;
+    --warn-tint:#FFF6DF;
+    --danger-tint:#FFF1F3;
+    --danger-text:#9B2C43;
+    --badge-bg:#D9E8FB;
+    --badge-text:#1D4E89;
+    --code-text:#D7E8F5;
+    --code-text-dim:#8FA6C2;
+    --code-selection:#264866;
+    --grip-dark:#3E577A;
     --font-sans: "Segoe UI", "Yu Gothic UI", "Meiryo UI", "Hiragino Kaku Gothic ProN", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     --font-display: "Segoe UI Semibold", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
     --font-mono: Consolas, "Cascadia Mono", "SF Mono", "Yu Gothic UI", "Courier New", monospace;
@@ -77,18 +125,18 @@
   }
   .brand-mark::before{ top:8px; left:5px; right:5px; height:2px; }
   .brand-mark::after{ top:16px; left:5px; right:9px; height:2px; }
-  .brand-title{color:#fff; font-size:16px; font-weight:700; letter-spacing:0.2px;}
+  .brand-title{color:var(--text-on-dark-strong); font-size:16px; font-weight:700; letter-spacing:0.2px;}
   .brand-sub{color:var(--cyan); font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; font-weight:600;}
 
   .field-group{display:flex; flex-direction:column; gap:3px;}
-  .field-group label{font-size:10px; color:#9AB0C9; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;}
+  .field-group label{font-size:10px; color:var(--text-on-dark-dim); text-transform:uppercase; letter-spacing:0.8px; font-weight:600;}
   select, .btn, input[type=text]{
     font-family:var(--font-sans);
     font-size:13px;
   }
   select{
     background:var(--ink-700);
-    color:#fff;
+    color:var(--text-on-dark-strong);
     border:1px solid var(--ink-line);
     border-radius:6px;
     padding:6px 10px;
@@ -99,12 +147,18 @@
     display:flex; align-items:center; gap:18px; flex-wrap:wrap;
     flex:1; min-width:0;
   }
+  /* ヘッダーの色ピッカー（キャンバスの背景色）。ブラウザ既定のままだと
+     周りのボタンと高さが揃わないので、select と同じ枠に合わせる */
+  .header-controls input[type=color]{
+    width:44px; height:30px; padding:2px; cursor:pointer;
+    background:var(--ink-700); border:1px solid var(--ink-line); border-radius:6px;
+  }
   .header-toggle-bar{ display:none; }
   .toolbar-spacer{flex:1;}
   .btn{
     display:inline-flex; align-items:center; gap:6px;
     background:var(--ink-700);
-    color:#EAF2FA;
+    color:var(--text-on-dark);
     border:1px solid var(--ink-line);
     border-radius:6px;
     padding:7px 12px;
@@ -117,14 +171,14 @@
   .btn-accent{
     background:var(--amber);
     border-color:var(--amber);
-    color:var(--ink-900);
+    color:var(--text-on-warn);
     font-weight:600;
   }
-  .btn-accent:hover{ color:var(--ink-900); border-color:#fff; }
+  .btn-accent:hover{ color:var(--text-on-warn); border-color:var(--text-on-dark-strong); }
   .btn-ghost{ background:transparent; }
   .btn-sm{ padding:5px 9px; font-size:12px; border-radius:5px;}
-  .btn-danger{ color:var(--danger); }
-  .btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .btn-danger{ color:var(--danger-on-dark); }
+  .btn-danger:hover{ border-color:var(--danger-on-dark); color:var(--danger-on-dark); }
 
   /* ---------- MAIN LAYOUT ---------- */
   .main{ flex:1; display:flex; min-height:0; }
@@ -142,7 +196,7 @@
     flex:1;
     overflow:auto;
     position:relative;
-    background-color:#FBFCFE;
+    background-color:var(--surface-canvas);
     background-image:
       linear-gradient(var(--paper-line) 1px, transparent 1px),
       linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
@@ -160,10 +214,10 @@
 
   #preview{ display:flex; align-items:flex-start; justify-content:center; min-height:100%; }
   #preview svg{ max-width:100%; height:auto; }
-  .preview-placeholder{ margin:auto; text-align:center; color:var(--text-soft); font-size:13.5px; max-width:320px; }
+  .preview-placeholder{ margin:auto; text-align:center; color:var(--text-on-canvas); font-size:13.5px; max-width:320px; }
   .preview-error{
     margin:20px auto; max-width:520px;
-    background:#FFF1F3; border:1px solid var(--danger); color:#9B2C43;
+    background:var(--danger-tint); border:1px solid var(--danger); color:var(--danger-text);
     padding:12px 14px; border-radius:8px; font-size:12.5px; white-space:pre-wrap;
     font-family:var(--font-mono);
   }
@@ -182,16 +236,16 @@
   .zoom-bar{
     position:absolute; right:14px; bottom:14px; z-index:5;
     display:flex; align-items:center; gap:2px;
-    background:rgba(255,255,255,.93);
-    border:1px solid #D3DEEA; border-radius:8px;
-    box-shadow:0 2px 8px rgba(16,35,63,.14);
+    background:var(--surface-overlay);
+    border:1px solid var(--border-note); border-radius:8px;
+    box-shadow:0 2px 8px var(--shadow-soft);
     padding:3px;
   }
   .zoom-bar button{
     border:none; background:none; cursor:pointer; color:var(--text-ink);
     font-family:var(--font-sans); border-radius:5px; padding:4px 7px; line-height:1;
   }
-  .zoom-bar button:hover{ background:#EAF1F8; }
+  .zoom-bar button:hover{ background:var(--surface-subtle); }
   .zoom-btn{ font-size:15px; width:26px; }
   .zoom-level{ font-size:11.5px; min-width:48px; font-variant-numeric:tabular-nums; }
 
@@ -206,7 +260,7 @@
     display:flex; align-items:center; justify-content:center;
   }
   .drawer-resizer::before{
-    content:""; width:38px; height:3px; border-radius:2px; background:#3E577A;
+    content:""; width:38px; height:3px; border-radius:2px; background:var(--grip-dark);
   }
   .drawer-resizer:hover::before, .drawer-resizer.dragging::before{ background:var(--cyan-dim); }
   /* ドラッグ中に高さのアニメーションが効くと、指の動きから遅れて追従してしまう */
@@ -229,30 +283,30 @@
     flex-shrink:0;
     border-bottom:1px solid var(--ink-line);
   }
-  .code-drawer-bar .title{color:#EAF2FA; font-size:12.5px; font-weight:600; letter-spacing:.3px;}
+  .code-drawer-bar .title{color:var(--text-on-dark); font-size:12.5px; font-weight:600; letter-spacing:.3px;}
   .toggle-edit{
     display:flex; align-items:center; gap:6px;
-    color:#9AB0C9; font-size:11.5px; cursor:pointer; user-select:none;
+    color:var(--text-on-dark-dim); font-size:11.5px; cursor:pointer; user-select:none;
   }
   .toggle-edit input{ accent-color:var(--cyan); }
   #codeArea{
     flex:1; width:100%; resize:none; border:none; outline:none;
-    background:var(--ink-900); color:#D7E8F5;
+    background:var(--ink-900); color:var(--code-text);
     font-family:var(--font-mono); font-size:12.5px; line-height:1.6; padding:12px 16px;
   }
-  #codeArea[readonly]{ color:#8FA6C2; }
-  #codeArea::selection{ background:#264866; }
+  #codeArea[readonly]{ color:var(--code-text-dim); }
+  #codeArea::selection{ background:var(--code-selection); }
 
   /* ---------- BUILDER PANEL ---------- */
-  .panel-builder h2{ font-size:14px; margin:0 0 2px; color:var(--ink-800); }
+  .panel-builder h2{ font-size:14px; margin:0 0 2px; color:var(--text-strong); }
   .panel-builder .hint{ font-size:11.5px; color:var(--text-soft); margin:0 0 16px; line-height:1.6; }
   .card{
-    background:#fff; border:1px dashed #B9C7DA; border-radius:9px;
+    background:var(--surface-card); border:1px dashed var(--border-dashed); border-radius:9px;
     padding:12px 13px; margin-bottom:14px;
   }
   .card-title{
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;
-    color:var(--cyan-dim); margin-bottom:10px; display:flex; align-items:center; gap:6px;
+    color:var(--accent-ink); margin-bottom:10px; display:flex; align-items:center; gap:6px;
   }
   .card-title::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--amber); }
   .row{ display:flex; gap:8px; margin-bottom:8px; }
@@ -263,125 +317,148 @@
   }
   .field input[type=text], .field select{
     width:100%; padding:6px 8px;
-    border:1px solid #CBD6E4; border-radius:5px;
-    background:#FAFBFD; color:var(--text-ink); font-size:12.5px;
+    border:1px solid var(--border-strong); border-radius:5px;
+    background:var(--surface-input); color:var(--text-ink); font-size:12.5px;
   }
   .field input[type=text]:focus, .field select:focus{ outline:2px solid var(--cyan); outline-offset:0; border-color:var(--cyan); }
   .field input[type=color]{
     width:100%; height:30px; padding:2px;
-    border:1px solid #CBD6E4; border-radius:5px; background:#FAFBFD; cursor:pointer;
+    border:1px solid var(--border-strong); border-radius:5px; background:var(--surface-input); cursor:pointer;
   }
   .color-presets{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
   .color-swatch{
-    width:18px; height:18px; border-radius:4px; border:1px solid #CBD6E4;
+    width:18px; height:18px; border-radius:4px; border:1px solid var(--border-strong);
     padding:0; cursor:pointer; flex-shrink:0;
   }
   .color-swatch:hover{ border-color:var(--cyan); transform:scale(1.12); }
+  /* 色を戻す・既定に戻す。プリセットの並びの末尾に置く */
+  .color-actions{ display:flex; gap:4px; margin-left:auto; }
+  .color-act{
+    font-size:10px; padding:2px 6px; border-radius:4px; cursor:pointer;
+    background:var(--surface-card); color:var(--text-soft);
+    border:1px solid var(--border-strong); white-space:nowrap;
+    font-family:var(--font-sans);
+  }
+  .color-act:hover:not(:disabled){ border-color:var(--cyan); color:var(--accent-ink); }
+  .color-act:disabled{ opacity:0.4; cursor:default; }
   .add-row-btn{
     width:100%; margin-top:2px;
-    background:var(--ink-800); color:#fff; border:none; border-radius:6px;
+    background:var(--ink-800); color:var(--text-on-dark-strong); border:none; border-radius:6px;
     padding:8px; font-size:12.5px; font-weight:600; cursor:pointer;
     display:flex; align-items:center; justify-content:center; gap:6px;
   }
   .add-row-btn:hover{ background:var(--ink-700); }
+  /* 「編集をキャンセル」。追加ボタンと区別しつつ、白文字が読める濃さを保つ */
+  .add-row-btn.is-cancel{ background:var(--surface-cancel); }
+  .add-row-btn.is-cancel:hover{ background:var(--ink-700); }
 
   .item-list{ margin-top:10px; display:flex; flex-direction:column; gap:6px; }
   .item-row{
     display:flex; align-items:center; gap:8px;
-    background:#FAFBFD; border:1px solid #E1E8F0; border-radius:6px;
+    background:var(--surface-input); border:1px solid var(--border-soft); border-radius:6px;
     padding:6px 8px; font-size:12px;
   }
   .item-row .item-text{
     flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    font-family:var(--font-mono); font-size:11.5px; color:var(--ink-800);
+    font-family:var(--font-mono); font-size:11.5px; color:var(--text-strong);
   }
   .item-row button{
-    background:none; border:none; color:var(--danger); cursor:pointer; font-size:15px;
+    /* 淡い行の上に載るので、面用の --danger（明るいピンク寄り）では
+       コントラストが足りない（実測3.05）。文字用の濃い方を使う */
+    background:none; border:none; color:var(--danger-text); cursor:pointer; font-size:15px;
     line-height:1; padding:2px 5px; border-radius:4px;
   }
-  .item-row button:hover{ background:#FFE7EB; }
-  .item-row button.edit-btn{ color:var(--cyan-dim); font-size:13px; }
-  .item-row button.edit-btn:hover{ background:#E3F6FA; }
+  .item-row button:hover{ background:var(--danger-tint); }
+  .item-row button.edit-btn{ color:var(--accent-ink); font-size:13px; }
+  .item-row button.edit-btn:hover{ background:var(--accent-tint); }
   .item-row.dragging{ opacity:0.4; }
   .item-row.drag-over{ box-shadow: inset 0 2px 0 var(--cyan-dim); }
   .item-row.drop-rejected{ animation: dropReject 0.6s ease-out; }
   @keyframes dropReject{
-    0%, 60%{ background:#FDE7EA; box-shadow: inset 0 0 0 2px var(--danger); }
+    0%, 60%{ background:var(--danger-tint); box-shadow: inset 0 0 0 2px var(--danger); }
     100%{ background:transparent; box-shadow:none; }
   }
   .item-row .drag-handle{ cursor:grab; color:var(--text-soft); font-size:13px; line-height:1; user-select:none; flex:none; }
   .item-row .drag-handle:active{ cursor:grabbing; }
-  .item-row.picked{ background:#FFF6DF; box-shadow: inset 0 0 0 2px var(--amber); }
+  .item-row.picked{ background:var(--warn-tint); box-shadow: inset 0 0 0 2px var(--amber); }
   /* ---------- 折りたたみグループ見出し（レーンごとに束ねる） ---------- */
   .group-toolbar{ display:flex; gap:6px; }
   .group-toolbar button{
-    background:#EEF3F8; border:1px solid #E1E8F0; color:var(--text-soft);
+    background:var(--accent-tint-soft); border:1px solid var(--border-soft); color:var(--text-soft);
     font-size:10.5px; padding:2px 9px; border-radius:5px; cursor:pointer; font-family:var(--font-sans);
   }
-  .group-toolbar button:hover{ background:#E3F6FA; color:var(--cyan-dim); border-color:var(--cyan); }
+  .group-toolbar button:hover{ background:var(--accent-tint); color:var(--accent-ink); border-color:var(--cyan); }
   .group-sec{ display:flex; flex-direction:column; gap:6px; }
   .group-head{
     display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;
     padding:4px 8px; border-radius:6px;
-    background:#EDF6F9; border:1px solid #D5E7EC;
-    font-size:11px; color:var(--ink-800);
+    background:var(--accent-tint-soft); border:1px solid var(--accent-border);
+    font-size:11px; color:var(--text-strong);
   }
-  .group-head:hover{ background:#E1F1F5; }
-  .group-caret{ font-size:10px; color:var(--cyan-dim); width:10px; flex:none; text-align:center; }
-  .group-swatch{ display:inline-block; width:10px; height:10px; border-radius:3px; border:1px solid #999; flex:none; }
+  .group-head:hover{ background:var(--accent-tint-strong); }
+  .group-caret{ font-size:10px; color:var(--accent-ink); width:10px; flex:none; text-align:center; }
+  .group-swatch{ display:inline-block; width:10px; height:10px; border-radius:3px; border:1px solid var(--border-swatch); flex:none; }
   .group-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono); }
   .group-count{
     flex:none; font-family:var(--font-mono); font-size:10px; color:var(--text-soft);
-    background:#fff; border:1px solid #D5E7EC; border-radius:10px; padding:0 7px; min-width:20px; text-align:center;
+    background:var(--surface-card); border:1px solid var(--accent-border); border-radius:10px; padding:0 7px; min-width:20px; text-align:center;
   }
-  .group-body{ display:flex; flex-direction:column; gap:6px; padding-left:10px; border-left:2px solid #E1EDF1; margin-left:4px; }
+  .group-body{ display:flex; flex-direction:column; gap:6px; padding-left:10px; border-left:2px solid var(--accent-border); margin-left:4px; }
   .group-sec.collapsed .group-body{ display:none; }
   .key-badge{
     display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.3px;
     padding:1px 5px; border-radius:3px; margin-right:4px; flex-shrink:0;
-    background:#D9E8FB; color:#1D4E89;
+    background:var(--badge-bg); color:var(--badge-text);
   }
-  .empty-note{ font-size:11.5px; color:#A9B6C6; text-align:center; padding:8px 0; }
+  .empty-note{ font-size:11.5px; color:var(--text-faint); text-align:center; padding:8px 0; }
 
   ::-webkit-scrollbar{ width:10px; height:10px; }
-  ::-webkit-scrollbar-thumb{ background:#C7D2DF; border-radius:6px; }
-  .panel-builder::-webkit-scrollbar-thumb{ background:#CBD6E4; }
+  ::-webkit-scrollbar-thumb{ background:var(--scrollbar-thumb); border-radius:6px; }
+  .panel-builder::-webkit-scrollbar-thumb{ background:var(--border-strong); }
 
   /* ---------- MODAL ---------- */
   .modal-overlay{
-    display:none; position:fixed; inset:0; background:rgba(10,24,48,0.55);
+    display:none; position:fixed; inset:0; background:var(--overlay-veil);
     z-index:1000; align-items:center; justify-content:center;
   }
   .modal-overlay.open{ display:flex; }
   .modal-box{
-    background:#fff; border-radius:10px; width:min(560px, 90vw);
+    background:var(--surface-card); border-radius:10px; width:min(560px, 90vw);
     max-height:80vh; display:flex; flex-direction:column;
-    box-shadow:0 20px 60px rgba(0,0,0,0.35);
+    box-shadow:0 20px 60px var(--shadow-strong);
   }
   .modal-header{
     display:flex; align-items:center; justify-content:space-between;
-    padding:14px 18px; border-bottom:1px solid #E1E8F0;
-    font-weight:700; font-size:14px; color:var(--ink-800); flex-shrink:0;
+    padding:14px 18px; border-bottom:1px solid var(--border-soft);
+    font-weight:700; font-size:14px; color:var(--text-strong); flex-shrink:0;
   }
   .modal-close{
     background:none; border:none; font-size:18px; cursor:pointer; color:var(--text-soft);
     padding:2px 8px; border-radius:5px;
   }
-  .modal-close:hover{ background:#F0F3F7; color:var(--ink-800); }
+  .modal-close:hover{ background:var(--surface-subtle); color:var(--text-strong); }
   .modal-body{ padding:16px 18px; overflow-y:auto; font-size:12.5px; color:var(--text-ink); line-height:1.7; }
-  .modal-body h3{ font-size:12.5px; color:var(--ink-800); margin:16px 0 6px; }
+  .modal-body a{ color:var(--link); }
+  .modal-body h3{ font-size:12.5px; color:var(--text-strong); margin:16px 0 6px; }
   .modal-body h3:first-child{ margin-top:0; }
-  .credit-item{ background:#F7F9FB; border:1px solid #E1E8F0; border-radius:8px; padding:10px 12px; }
-  .credit-name{ font-weight:700; color:var(--ink-800); font-size:12.5px; }
+  .credit-item{ background:var(--surface-note); border:1px solid var(--border-soft); border-radius:8px; padding:10px 12px; }
+  .credit-name{ font-weight:700; color:var(--text-strong); font-size:12.5px; }
   .credit-detail{ margin-top:4px; font-size:11.5px; color:var(--text-soft); }
   .modal-body pre{
-    background:#F7F9FB; border:1px solid #E1E8F0; border-radius:6px; padding:10px;
+    background:var(--surface-note); border:1px solid var(--border-soft); border-radius:6px; padding:10px;
     font-family:var(--font-mono); font-size:11px; white-space:pre-wrap; color:var(--text-ink);
   }
   .modal-body code{
-    background:#F0F3F7; border:1px solid #E1E8F0; border-radius:4px; padding:1px 5px;
+    background:var(--surface-subtle); border:1px solid var(--border-soft); border-radius:4px; padding:1px 5px;
     font-family:var(--font-mono); font-size:11px;
   }
+
+  .modal-actions{
+    display:flex; justify-content:flex-end; gap:8px;
+    padding:12px 18px; border-top:1px solid var(--border-soft); flex-shrink:0;
+  }
+  .dialog-box{ width:min(440px, 90vw); }
+  #dialogBody{ white-space:pre-wrap; }
 
   /* ---------- RESPONSIVE ---------- */
   @media (max-width:1100px){
@@ -403,7 +480,7 @@
       border-top:1px solid var(--ink-line); border-bottom:1px solid var(--ink-line);
       cursor:row-resize; touch-action:none;
     }
-    .panel-resizer::before{ content:""; width:36px; height:4px; border-radius:2px; background:#CBD6E4; }
+    .panel-resizer::before{ content:""; width:36px; height:4px; border-radius:2px; background:var(--border-strong); }
     .panel-resizer:hover::before, .panel-resizer.dragging::before{ background:var(--cyan-dim); }
     .header-controls{ flex-basis:100%; order:2; }
     .header-controls.collapsed{ display:none; }
@@ -411,10 +488,10 @@
       display:block;
       position:absolute; left:50%; bottom:-11px; transform:translateX(-50%);
       width:34px; z-index:5;
-      background:var(--cyan-dim); color:#EAF2FA;
+      background:var(--cyan-dim); color:var(--text-on-dark);
       border:1px solid var(--cyan); border-radius:8px;
       padding:2px 0; font-size:13px; line-height:1.3; text-align:center; cursor:pointer;
-      box-shadow:0 1px 4px rgba(10,24,48,0.35);
+      box-shadow:0 1px 4px var(--shadow-drop);
     }
     .header-toggle-bar:hover{ filter:brightness(1.15); }
   }
@@ -432,6 +509,20 @@
   </div>
 
   <div class="header-controls" id="headerControls">
+    <div class="field-group">
+      <label for="canvasBgSelect">キャンバス</label>
+      <select id="canvasBgSelect">
+        <option value="auto">自動</option>
+        <option value="light">明るい</option>
+        <option value="dark">暗い</option>
+        <option value="custom">色を指定</option>
+      </select>
+    </div>
+    <div class="field-group" id="canvasBgCustomWrap" style="display:none;">
+      <label for="canvasBgColor">背景色</label>
+      <input type="color" id="canvasBgColor" value="#FBFCFE" aria-label="キャンバスの背景色">
+    </div>
+
     <button class="btn btn-sm" id="btnLoadSample">📋 サンプルを読み込む</button>
     <button class="btn btn-sm btn-danger" id="btnClear">🗑️ クリア</button>
 
@@ -440,6 +531,7 @@
     <input type="file" id="fileInput" accept=".swim,.txt,.md,.markdown" aria-label="ファイルを開く" tabindex="-1" style="display:none;">
     <button class="btn btn-sm" id="btnOpenFile">📂 ファイルを開く</button>
     <button class="btn btn-sm" id="btnCopyCode">コードをコピー</button>
+    <button class="btn btn-sm" id="btnCopyMd">Markdownとしてコピー</button>
     <button class="btn btn-sm btn-accent" id="btnDownloadSwim">.swim 保存</button>
     <button class="btn btn-sm" id="btnDownloadSvg">.svg 保存</button>
     <button class="btn btn-sm" id="btnDownloadHtml">.html 保存</button>
@@ -477,6 +569,25 @@
       <h3>開始・終了の「●」</h3>
       <p>接続の from に <code>[*]</code> を選ぶと開始（●）、to に選ぶと終了（◉）が、相手と同じレーン・同じフェーズに作られます。開始は接続先の手前（LRなら左／TBなら上）、終了は先（右／下）に、位置を揃えて描かれます。そのあとは普通の図形として位置や所属を変更できます。図形の「形」から直接追加することもできます。</p>
 
+      <h3>コピー</h3>
+      <div class="credit-item">
+        <div class="credit-name">コードをコピー</div>
+        <div class="credit-detail">下のコード欄の中身（.swim のコード）をそのままコピーします。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">Markdownとしてコピー</div>
+        <div class="credit-detail">
+          <code>```swimlane</code> で囲んだ形でコピーします。
+          <p style="margin:6px 0 0;"><strong>貼り付け先でこのブロックを図として表示するには、対応させる仕組みが要ります。</strong>
+          Mermaid と違い <code>swimlane</code> は一般的なMarkdownビューアが知らない言語名なので、
+          そのままではコードブロックとして表示されます。</p>
+          <ul style="margin:6px 0 0; padding-left:1.2em;">
+            <li><strong>VS Code</strong> … 拡張機能「<strong><a href="https://marketplace.visualstudio.com/items?itemName=tossie85.swimlane-diagram-preview" target="_blank" rel="noopener">Swimlane Diagram Preview</a></strong>」を入れると、Markdownのプレビュー（<code>Ctrl+Shift+V</code>）で図になります</li>
+            <li><strong>自分のサイト</strong> … <code>swimlane.js</code> を組み込みます（手順は <code>ℹ️</code> の「このツールについて」）</li>
+          </ul>
+        </div>
+      </div>
+
       <h3>保存（エクスポート）</h3>
       <div class="credit-item">
         <div class="credit-name">.swim 保存</div>
@@ -493,6 +604,8 @@
 
       <h3>操作</h3>
       <p>一覧の <code>⠿</code> をドラッグすると並べ替えできます。プレビュー上の図形や矢印をクリックすると、対応する項目が編集状態になります。図形以外の場所をクリックすると編集を解除します。</p>
+      <p>色の指定には <code>↩ 戻す</code>（ひとつ前の色に戻す／最大20件）と <code>既定に戻す</code>（色の指定をやめる）があります。編集する項目を切り替えると履歴はリセットされます。</p>
+      <p>ヘッダーの <strong>キャンバス</strong> は、図のまわり（地）の色の設定です。図そのものは白地で描かれるので見え方は変わりません。<strong>この設定は保存物（.swim / .svg / .html）には含まれません。</strong></p>
     </div>
   </div>
 </div>
@@ -510,6 +623,9 @@
         <div class="credit-name">なし（外部通信なし）</div>
         <div class="credit-detail">.swim の解析とSVG描画は、このサイトが自作した <code>swimlane.js</code>（下記）で行っています。サードパーティ製ライブラリ・外部通信ともにありません。</div>
       </div>
+
+      <h3>VS Code の Markdown で ```swimlane を使う</h3>
+      <p>拡張機能「<strong><a href="https://marketplace.visualstudio.com/items?itemName=tossie85.swimlane-diagram-preview" target="_blank" rel="noopener">Swimlane Diagram Preview</a></strong>」を入れると、VS Code 標準の Markdown プレビュー（<code>Ctrl+Shift+V</code>）で <code>```swimlane</code> ブロックが図として表示されます。このツールの「Markdownとしてコピー」は、そのまま貼り付けられる形で出力します。</p>
 
       <h3>自分のサイトのMarkdownで ```swimlane を使えるようにする</h3>
       <p>Mermaidと同じように、自分のサイトのMarkdown記法に <code>```swimlane</code> フェンスコードブロックを組み込みたいサイト管理者向けの手順です（tossie85 lab自体もこの方式で記事内に埋め込んでいます）。</p>
@@ -567,6 +683,24 @@
         <div class="credit-name">Mermaid GUI Studio</div>
         <div class="credit-detail">フローチャートやシーケンス図など、Mermaidが対応する図種はこちらで作成できます。操作性はこのツールと共通です。</div>
       </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">Swimlane Diagram Preview（VS Code 拡張）</div>
+        <div class="credit-detail">VS Code 標準の Markdown プレビューで <code>```swimlane</code> ブロックを図として表示する拡張です。「Markdownとしてコピー」で出したコードはこれで表示できます。<br><a href="https://marketplace.visualstudio.com/items?itemName=tossie85.swimlane-diagram-preview" target="_blank" rel="noopener">Marketplace で見る</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dialogOverlay">
+  <div class="modal-box dialog-box">
+    <div class="modal-header">
+      <span id="dialogTitle">確認</span>
+      <button class="modal-close" id="dialogClose">×</button>
+    </div>
+    <div class="modal-body" id="dialogBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" id="dialogCancel">キャンセル</button>
+      <button class="btn btn-sm btn-accent" id="dialogOk">OK</button>
     </div>
   </div>
 </div>
@@ -608,6 +742,56 @@
    - レイアウト計算(computeLayout)と描画(drawSvg)を分けてあるので、
      将来「キャンバス自由配置」を足すときは computeLayout を差し替えるだけでよい。
    ========================================================================= */
+
+/* ============ ホスト抽象 ============ */
+/* ブラウザ固有の機能（保存・読み込み・ダイアログ）を1か所に集める。
+   VS Code 拡張として動かすときは、ビルドがこの Host だけを差し替える（本体は変更しない）。
+   Webview では alert / confirm が動かず <a download> も禁止のため、直接呼ばず必ず Host 経由にする。 */
+const Host = {
+  saveFile(filename, mime, content){ downloadBlob(content, filename, mime); },
+  openFile(){
+    return new Promise(resolve=>{
+      const input = document.getElementById('fileInput');
+      input.onchange = async ()=>{
+        const file = input.files && input.files[0];
+        input.value = '';
+        if(!file){ resolve(null); return; }
+        try{ resolve({ name:file.name, text: await file.text() }); }
+        catch(err){ resolve({ error:{ message:String((err && err.message) || err) } }); }
+      };
+      input.click();
+    });
+  },
+  alert(message, title){ return openDialog(message, { title: title || 'お知らせ', okOnly:true }); },
+  confirm(message, title){ return openDialog(message, { title: title || '確認' }); },
+};
+
+let dialogResolve = null;
+function openDialog(message, opts){
+  const o = opts || {};
+  document.getElementById('dialogTitle').textContent = o.title || '確認';
+  document.getElementById('dialogBody').textContent = message;
+  document.getElementById('dialogCancel').style.display = o.okOnly ? 'none' : '';
+  document.getElementById('dialogOverlay').classList.add('open');
+  document.getElementById('dialogOk').focus();
+  return new Promise(resolve=>{ dialogResolve = resolve; });
+}
+function closeDialog(result){
+  document.getElementById('dialogOverlay').classList.remove('open');
+  const r = dialogResolve; dialogResolve = null;
+  if(r) r(result);
+}
+document.getElementById('dialogOk').addEventListener('click', ()=>closeDialog(true));
+document.getElementById('dialogCancel').addEventListener('click', ()=>closeDialog(false));
+document.getElementById('dialogClose').addEventListener('click', ()=>closeDialog(false));
+document.getElementById('dialogOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'dialogOverlay') closeDialog(false);
+});
+document.addEventListener('keydown', e=>{
+  if(dialogResolve === null) return;
+  if(e.key === 'Escape') closeDialog(false);
+  else if(e.key === 'Enter') closeDialog(true);
+});
 
 /* ============ 状態管理 ============ */
 function emptyState(){
@@ -655,7 +839,7 @@ function uniqueId(base, taken){
    oldId には編集中の項目の元IDを渡す（自分自身との衝突は重複としない）。 */
 function checkDuplicateId(id, oldId){
   if(allIds().some(x => x === id && x !== oldId)){
-    alert(`ID「${id}」はすでに使われています。
+    Host.alert(`ID「${id}」はすでに使われています。
 図の中でIDが重複しないように、別のIDを指定してください。`);
     return false;
   }
@@ -901,13 +1085,85 @@ document.getElementById('preview').addEventListener('click', ev=>{
   selectFromPreview(el.getAttribute('data-pick'), Number(el.getAttribute('data-idx')));
 });
 
+/* ============ 色の取り消し ============ */
+/* 色を変えてしまうと元の値が分からなくなるので、変更前の状態を積んでおく。
+   このツールの色は「値」と「色なし」の2つで1つの状態なので、両方を1件として持つ。
+   ネイティブのカラーピッカーはドラッグ中ずっと input が飛ぶため、
+   触り始め(pointerdown/focusin)の状態だけを控え、確定(change)したときに1件だけ積む。 */
+const colorHistory = new Map();   // 入力欄のid -> 直前までの状態の配列
+
+/* 履歴を持つのはビルダーの色だけ。ヘッダーのキャンバス色は対象外 */
+function trackedColorInput(target){
+  const input = target && target.closest && target.closest('input[type=color]');
+  return (input && input.id && input.closest('#builderPanel')) ? input : null;
+}
+function colorStateOf(input){
+  return { value: input.value, none: input.dataset.none === '1' };
+}
+function applyColorState(input, st){
+  input.value = st.value;
+  input.dataset.none = st.none ? '1' : '';
+}
+function sameColorState(a, b){ return !!a && !!b && a.value === b.value && a.none === b.none; }
+
+function pushColorHistory(input, st){
+  if(!input || !input.id || !st) return;
+  const hist = colorHistory.get(input.id) || [];
+  if(sameColorState(hist[hist.length - 1], st)) return;   // 同じ状態は積まない
+  hist.push(st);
+  if(hist.length > 20) hist.shift();                      // 際限なく増やさない
+  colorHistory.set(input.id, hist);
+  refreshColorUndoState(input.id);
+}
+function refreshColorUndoState(targetId){
+  const hist = colorHistory.get(targetId) || [];
+  document.querySelectorAll(`.color-undo[data-target="${targetId}"]`).forEach(b=>{
+    b.disabled = hist.length === 0;
+  });
+}
+/* 別の項目を編集し始めたら、前の項目の色に戻せてしまわないよう履歴を捨てる。
+   引数なしで全部消す（サンプル読込・クリア・ファイル読込のとき） */
+function clearColorHistory(targetId){
+  if(targetId === undefined){
+    colorHistory.clear();
+    document.querySelectorAll('.color-undo').forEach(b=>{ b.disabled = true; });
+    return;
+  }
+  colorHistory.delete(targetId);
+  refreshColorUndoState(targetId);
+}
+
+/* 触り始めの状態を控える。ピッカーを開く前に通る */
+document.addEventListener('pointerdown', e=>{
+  const input = trackedColorInput(e.target);
+  if(input) input.__colorBefore = colorStateOf(input);
+}, true);
+document.addEventListener('focusin', e=>{
+  const input = trackedColorInput(e.target);
+  if(input && !input.__colorBefore) input.__colorBefore = colorStateOf(input);
+});
+/* 確定したら履歴へ。ピッカーで色を選んだ時点で「色なし」は解除される */
+document.addEventListener('change', e=>{
+  const input = trackedColorInput(e.target);
+  if(!input || !input.__colorBefore) return;
+  const before = input.__colorBefore;
+  input.__colorBefore = null;
+  input.dataset.none = '';
+  if(!sameColorState(before, colorStateOf(input))) pushColorHistory(input, before);
+});
+
 /* ============ ビルダーUI ============ */
 function colorPresets(targetId, list){
   return `<div class="color-presets">` + list.map(c=>
     c === ''
       ? `<button type="button" class="color-swatch" data-target="${targetId}" data-color="" title="色なし" style="background:repeating-linear-gradient(45deg,#fff,#fff 4px,#E1E8F0 4px,#E1E8F0 8px)"></button>`
       : `<button type="button" class="color-swatch" data-target="${targetId}" data-color="${c}" title="${c}" style="background:${c}"></button>`
-  ).join('') + `</div>`;
+  ).join('') +
+    `<span class="color-actions">` +
+      `<button type="button" class="color-act color-undo" data-target="${targetId}" title="ひとつ前の色に戻す" disabled>↩ 戻す</button>` +
+      `<button type="button" class="color-act color-default" data-target="${targetId}" title="色の指定を既定に戻す">既定に戻す</button>` +
+    `</span>` +
+    `</div>`;
 }
 
 function renderBuilder(){
@@ -939,11 +1195,11 @@ function renderBuilder(){
       </div>
       <div class="field" style="margin-bottom:8px;">
         <label for="slLaneColor">帯の色</label>
-        <input type="color" id="slLaneColor" value="#E3F2FD">
+        <input type="color" id="slLaneColor" value="#E3F2FD" data-default="#E3F2FD">
         ${colorPresets('slLaneColor', LANE_COLORS)}
       </div>
       <button class="add-row-btn" id="slAddLane">＋ レーンを追加</button>
-      <button class="add-row-btn" id="slLaneCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <button class="add-row-btn is-cancel" id="slLaneCancel" style="display:none; margin-top:6px;">編集をキャンセル</button>
       <div class="item-list" id="slLaneList"></div>
     </div>
 
@@ -955,7 +1211,7 @@ function renderBuilder(){
         <div class="field"><label for="slPhaseLabel">表示名</label><input type="text" id="slPhaseLabel" placeholder="例: 受付"></div>
       </div>
       <button class="add-row-btn" id="slAddPhase">＋ フェーズを追加</button>
-      <button class="add-row-btn" id="slPhaseCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <button class="add-row-btn is-cancel" id="slPhaseCancel" style="display:none; margin-top:6px;">編集をキャンセル</button>
       <div class="item-list" id="slPhaseList"></div>
     </div>
 
@@ -976,11 +1232,11 @@ function renderBuilder(){
       </div>
       <div class="field" style="margin-bottom:8px;">
         <label for="slNodeColor">塗り色</label>
-        <input type="color" id="slNodeColor" value="#FFFFFF">
+        <input type="color" id="slNodeColor" value="#FFFFFF" data-default="#FFFFFF" data-default-none="1">
         ${colorPresets('slNodeColor', NODE_COLORS)}
       </div>
       <button class="add-row-btn" id="slAddNode">＋ 図形を追加</button>
-      <button class="add-row-btn" id="slNodeCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <button class="add-row-btn is-cancel" id="slNodeCancel" style="display:none; margin-top:6px;">編集をキャンセル</button>
       <div class="item-list" id="slNodeList"></div>
     </div>
 
@@ -997,17 +1253,46 @@ function renderBuilder(){
         <div class="field"><label for="slLinkLabel">ラベル（任意）</label><input type="text" id="slLinkLabel" placeholder="例: 承認"></div>
       </div>
       <button class="add-row-btn" id="slAddLink">＋ 接続を追加</button>
-      <button class="add-row-btn" id="slLinkCancel" style="display:none; background:#8697AC; margin-top:6px;">編集をキャンセル</button>
+      <button class="add-row-btn is-cancel" id="slLinkCancel" style="display:none; margin-top:6px;">編集をキャンセル</button>
       <div class="item-list" id="slLinkList"></div>
     </div>
   `;
 
   panel.addEventListener('click', e=>{
+    const undo = e.target.closest('.color-undo');
+    if(undo){
+      const input = document.getElementById(undo.dataset.target);
+      const hist = colorHistory.get(undo.dataset.target) || [];
+      if(!input || !hist.length) return;
+      applyColorState(input, hist.pop());     // 戻した操作自体は履歴に積まない
+      colorHistory.set(undo.dataset.target, hist);
+      input.__colorBefore = null;
+      refreshColorUndoState(undo.dataset.target);
+      return;
+    }
+    const def = e.target.closest('.color-default');
+    if(def){
+      const input = document.getElementById(def.dataset.target);
+      if(!input) return;
+      // 既定＝その入力欄を空のまま開いたときの状態（markup の data-default）
+      const next = { value: input.dataset.default || input.value, none: input.dataset.defaultNone === '1' };
+      const now = colorStateOf(input);
+      if(sameColorState(now, next)) return;
+      pushColorHistory(input, now);           // 既定に戻す操作も「戻す」で取り消せる
+      applyColorState(input, next);
+      return;
+    }
     const sw = e.target.closest('.color-swatch');
     if(!sw) return;
     const input = document.getElementById(sw.dataset.target);
-    if(sw.dataset.color){ input.value = sw.dataset.color; input.dataset.none = ''; }
-    else { input.dataset.none = '1'; }
+    if(!input) return;
+    const now = colorStateOf(input);
+    const next = sw.dataset.color
+      ? { value: sw.dataset.color, none:false }
+      : { value: now.value, none:true };       // 「色なし」は値を残したまま指定だけ外す
+    if(sameColorState(now, next)) return;
+    pushColorHistory(input, now);              // プリセットは change が飛ばないのでここで積む
+    applyColorState(input, next);
   });
 
   document.getElementById('dirSelect').value = state.direction;
@@ -1063,6 +1348,7 @@ function fillLaneForm(l){
   document.getElementById('slLaneLabel').value = l.label;
   const c = document.getElementById('slLaneColor');
   c.value = l.color || '#E3F2FD'; c.dataset.none = l.color ? '' : '1';
+  clearColorHistory('slLaneColor');   // 別のレーンの色に戻せてしまわないように
   document.getElementById('slAddLane').textContent = '✓ レーンを更新';
   document.getElementById('slLaneCancel').style.display = 'flex';
 }
@@ -1116,7 +1402,7 @@ function submitNode(){
   const shape = document.getElementById('slNodeShape').value;
   // ●は文字を持たないので、ラベル空でも追加できるようにする
   if(!rawId && !label && !isDot(shape)) return;
-  if(!state.lanes.length){ alert('先にレーンを追加してください。'); return; }
+  if(!state.lanes.length){ Host.alert('先にレーンを追加してください。'); return; }
   const laneId = document.getElementById('slNodeLane').value;
   const phaseId = document.getElementById('slNodePhase').value;
   const color = colorOf('slNodeColor');
@@ -1146,6 +1432,7 @@ function fillNodeForm(n){
   document.getElementById('slNodeShape').value = n.shape || 'process';
   const c = document.getElementById('slNodeColor');
   c.value = n.color || '#FFFFFF'; c.dataset.none = n.color ? '' : '1';
+  clearColorHistory('slNodeColor');   // 別の図形の色に戻せてしまわないように
   document.getElementById('slAddNode').textContent = '✓ 図形を更新';
   document.getElementById('slNodeCancel').style.display = 'flex';
 }
@@ -1187,11 +1474,11 @@ function orderToAfterFrom(fromId, toId){
 function submitLink(){
   let from = document.getElementById('slLinkFrom').value;
   let to = document.getElementById('slLinkTo').value;
-  if(!from || !to){ alert('先に図形を2つ以上追加してください。'); return; }
-  if(from === STAR && to === STAR){ alert('開始と終了だけをつなぐことはできません。'); return; }
+  if(!from || !to){ Host.alert('先に図形を2つ以上追加してください。'); return; }
+  if(from === STAR && to === STAR){ Host.alert('開始と終了だけをつなぐことはできません。'); return; }
   if(from === STAR) from = createMarker('startdot', to);
   if(to === STAR)   to   = createMarker('enddot', from);
-  if(!from || !to){ alert('接続先の図形が見つかりませんでした。'); return; }
+  if(!from || !to){ Host.alert('接続先の図形が見つかりませんでした。'); return; }
   const label = document.getElementById('slLinkLabel').value.trim();
   const style = document.getElementById('slLinkStyle').value;
   if(state.editLinkIdx !== null){
@@ -1392,6 +1679,7 @@ function afterStateReplaced(){
   document.getElementById('editToggle').checked = false;
   document.getElementById('codeArea').readOnly = true;
   document.getElementById('dirSelect').value = state.direction;
+  clearColorHistory();   // 図ごと差し替わるので、前の図の色に戻せてしまわないように
   cancelEditing();
   refreshLists();
   regenerateCode();
@@ -1400,52 +1688,54 @@ function afterStateReplaced(){
 
 /* ============ ヘッダー操作 ============ */
 document.getElementById('btnLoadSample').addEventListener('click', loadSample);
-document.getElementById('btnClear').addEventListener('click', ()=>{
+document.getElementById('btnClear').addEventListener('click', async ()=>{
   if(state.lanes.length || state.nodes.length){
-    if(!confirm('現在の内容を消去します。よろしいですか？')) return;
+    if(!await Host.confirm('現在の内容を消去します。よろしいですか？')) return;
   }
   clearAll();
 });
 
-document.getElementById('btnOpenFile').addEventListener('click', ()=> document.getElementById('fileInput').click());
-document.getElementById('fileInput').addEventListener('change', e=>{
-  const file = e.target.files && e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const { state: next, errors } = Swimlane.parse(String(reader.result));
-    if(errors.length && !next.lanes.length && !next.nodes.length){
-      alert('読み込めませんでした:\n' + errors.slice(0,5).join('\n'));
-      return;
-    }
-    Object.assign(state, emptyState(), next);
-    afterStateReplaced();
-    if(errors.length) showParseErrors(errors);
-  };
-  reader.readAsText(file);
-  e.target.value = '';
+document.getElementById('btnOpenFile').addEventListener('click', async ()=>{
+  const picked = await Host.openFile();
+  if(!picked) return;
+  if(picked.error){ Host.alert('読み込めませんでした:\n' + picked.error.message); return; }
+  const { state: next, errors } = Swimlane.parse(String(picked.text));
+  if(errors.length && !next.lanes.length && !next.nodes.length){
+    Host.alert('読み込めませんでした:\n' + errors.slice(0,5).join('\n'));
+    return;
+  }
+  Object.assign(state, emptyState(), next);
+  afterStateReplaced();
+  if(errors.length) showParseErrors(errors);
 });
 
 document.getElementById('btnCopyCode').addEventListener('click', ()=>{
   navigator.clipboard.writeText(document.getElementById('codeArea').value)
     .then(()=>flashBtn('btnCopyCode','コピーしました'));
 });
+/* ```swimlane で囲んでコピーする。貼り付け先でこのフェンスを図にするには、
+   VS Code なら「Swimlane Diagram Preview」拡張、自分のサイトなら swimlane.js の組み込みが要る
+   （Mermaid と違って、素のMarkdownビューアはこの言語名を知らないため）。 */
+document.getElementById('btnCopyMd').addEventListener('click', ()=>{
+  const md = '```swimlane\n' + document.getElementById('codeArea').value + '\n```';
+  navigator.clipboard.writeText(md).then(()=>flashBtn('btnCopyMd','コピーしました'));
+});
 document.getElementById('btnDownloadSwim').addEventListener('click', ()=>{
-  downloadBlob(document.getElementById('codeArea').value + '\n', 'diagram.swim', 'text/plain');
+  Host.saveFile('diagram.swim', 'text/plain', document.getElementById('codeArea').value + '\n');
 });
 document.getElementById('btnDownloadSvg').addEventListener('click', ()=>{
   const svgEl = document.querySelector('#preview svg');
-  if(!svgEl){ alert('先に図を作成してください。'); return; }
+  if(!svgEl){ Host.alert('先に図を作成してください。'); return; }
   const clean = svgEl.cloneNode(true);
   // クリック用に重ねている透明線は保存物に含めない
   clean.querySelectorAll('.sl-hit').forEach(el=>el.remove());
   clean.querySelectorAll('[data-pick]').forEach(el=>{ el.removeAttribute('data-pick'); el.removeAttribute('data-idx'); });
   const text = new XMLSerializer().serializeToString(clean);
-  downloadBlob('<?xml version="1.0" encoding="UTF-8"?>\n' + text, 'diagram.svg', 'image/svg+xml');
+  Host.saveFile('diagram.svg', 'image/svg+xml', '<?xml version="1.0" encoding="UTF-8"?>\n' + text);
 });
 document.getElementById('btnDownloadHtml').addEventListener('click', ()=>{
   const svgEl = document.querySelector('#preview svg');
-  if(!svgEl){ alert('先に図を作成してください。'); return; }
+  if(!svgEl){ Host.alert('先に図を作成してください。'); return; }
   const clean = svgEl.cloneNode(true);
   clean.querySelectorAll('.sl-hit').forEach(el=>el.remove());
   clean.querySelectorAll('[data-pick]').forEach(el=>{ el.removeAttribute('data-pick'); el.removeAttribute('data-idx'); });
@@ -1456,7 +1746,7 @@ document.getElementById('btnDownloadHtml').addEventListener('click', ()=>{
 </head><body>
 ${svgText}
 </body></html>`;
-  downloadBlob(html, 'diagram.html', 'text/html');
+  Host.saveFile('diagram.html', 'text/html', html);
 });
 
 document.getElementById('btnHelp').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.add('open'));
@@ -1708,7 +1998,66 @@ document.getElementById('btnToggleHeader').addEventListener('click', ()=>{
   });
 })();
 
+/* ============ キャンバス（プレビューの地）の色 ============ */
+/* swimlane.js が描くSVGは自前で白の背景を敷くので、地の色は図の読みやすさに影響しない。
+   ここは図の「まわり」の色（マット）を選ぶだけの、プレビューの見え方の設定で、
+   .swim / .svg / .html の保存物には含まれない。
+
+   「自動」は --surface-canvas-auto を見る。拡張ではここがエディタの背景に差し替わるので、
+   暗いテーマでは地も暗くなる（var() のまま渡してテーマ切替に追従させる）。Web版では明るいまま。 */
+const CANVAS_BG = { light:'#FBFCFE', dark:'#1E1E1E' };
+/* 地に直接載る文字の候補。馴染む順に並べ、基準(4.5)を満たす最初のものを使う */
+const ON_CANVAS_CANDIDATES = ['#5B6B84','#B9C7DA','#16233A','#FFFFFF'];
+let canvasBgMode = 'auto';
+let canvasBgCustom = '#FBFCFE';
+
+function relLum(rgb){
+  const [r,g,b] = rgb.map(v=>{ const c = v/255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); });
+  return 0.2126*r + 0.7152*g + 0.0722*b;
+}
+function contrastRatio(a, b){
+  const l1 = relLum(a), l2 = relLum(b);
+  return (Math.max(l1,l2) + 0.05) / (Math.min(l1,l2) + 0.05);
+}
+function hexRgb(h){ return [1,3,5].map(i=>parseInt(h.substr(i,2),16)); }
+function readableOnCanvas(bg){
+  let best = ON_CANVAS_CANDIDATES[0], bestRatio = 0;
+  for(const c of ON_CANVAS_CANDIDATES){
+    const r = contrastRatio(hexRgb(c), bg);
+    if(r >= 4.5) return c;
+    if(r > bestRatio){ bestRatio = r; best = c; }
+  }
+  return best;   // どれも届かない中間色なら、いちばんマシなもの
+}
+
+function applyCanvasBg(){
+  const root = document.documentElement;
+  const value = canvasBgMode === 'custom' ? canvasBgCustom
+              : (canvasBgMode === 'light' || canvasBgMode === 'dark') ? CANVAS_BG[canvasBgMode]
+              : 'var(--surface-canvas-auto)';
+  root.style.setProperty('--surface-canvas', value);
+  document.getElementById('canvasBgCustomWrap').style.display = canvasBgMode === 'custom' ? '' : 'none';
+  // 実際に描かれた色を読んで文字色を決める（hex でも rgb() でも同じ扱いにできる）
+  const wrap = document.querySelector('.canvas-wrap');
+  const m = wrap && getComputedStyle(wrap).backgroundColor.match(/[\d.]+/g);
+  const bg = m ? [Number(m[0]), Number(m[1]), Number(m[2])] : hexRgb(CANVAS_BG.light);
+  root.style.setProperty('--text-on-canvas', readableOnCanvas(bg));
+}
+
+document.getElementById('canvasBgSelect').addEventListener('change', e=>{
+  canvasBgMode = e.target.value;
+  applyCanvasBg();
+});
+document.getElementById('canvasBgColor').addEventListener('input', e=>{
+  canvasBgCustom = e.target.value;
+  if(canvasBgMode === 'custom') applyCanvasBg();
+});
+/* 拡張でテーマを切り替えると body のクラスが変わる。「自動」の文字色を追従させる */
+new MutationObserver(()=>applyCanvasBg())
+  .observe(document.body, { attributes:true, attributeFilter:['class'] });
+
 /* ============ 初期化 ============ */
+applyCanvasBg();
 renderBuilder();
 loadSample();
 </script>
