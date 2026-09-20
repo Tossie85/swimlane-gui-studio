@@ -51,4 +51,4 @@ Web版（ブラウザだけで動く同じツール）は <https://tossie85.site
 
 ## ライセンス
 
-[MIT](LICENSE)
+[MIT License](https://opensource.org/licenses/MIT)（同梱の `LICENSE` を参照）
