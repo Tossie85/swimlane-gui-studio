@@ -1,5 +1,14 @@
 # 変更履歴
 
+## 0.1.3
+
+- Marketplace のページで「MIT」のリンクが 404 になっていたのを修正。
+  `vsce package` は README の相対リンクを `repository` の URL へ書き換えるが、
+  リポジトリが非公開なので辿れなかった。リンク先を
+  [opensource.org](https://opensource.org/licenses/MIT) の絶対URLにし、
+  ライセンス本文は同梱の `LICENSE` を見てもらう形にした。
+  **README に相対リンクを書かないこと**（[PUBLISHING.md](PUBLISHING.md) 参照）。
+
 ## 0.1.2
 
 - ループ（例: `n18 → n19 → n20 → n18`）を含む図で、ノードの並び順が逆転していたのを修正。
