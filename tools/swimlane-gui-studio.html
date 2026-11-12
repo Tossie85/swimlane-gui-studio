@@ -534,6 +534,7 @@
     <button class="btn btn-sm" id="btnCopyMd">Markdownとしてコピー</button>
     <button class="btn btn-sm btn-accent" id="btnDownloadSwim">.swim 保存</button>
     <button class="btn btn-sm" id="btnDownloadSvg">.svg 保存</button>
+    <button class="btn btn-sm" id="btnDownloadPng">.png 保存</button>
     <button class="btn btn-sm" id="btnDownloadHtml">.html 保存</button>
     <button class="btn btn-sm btn-ghost" id="btnHelp" title="記法・保存機能の説明">❓</button>
     <button class="btn btn-sm btn-ghost" id="btnCredits" title="このツールについて">ℹ️</button>
@@ -598,6 +599,10 @@
         <div class="credit-detail">表示中の図を画像（SVG）として保存します。資料やスライドへの貼り付け用です。</div>
       </div>
       <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">.png 保存</div>
+        <div class="credit-detail">表示中の図を画像（PNG）として保存します。SVGを扱えない場所（SNSの告知、チャット、Wiki）への貼り付け用です。拡大しても粗くならないよう、画面の2倍の大きさで書き出します。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
         <div class="credit-name">.html 保存</div>
         <div class="credit-detail">ブラウザでそのまま開ける単独HTMLとして保存します。図はSVGで埋め込まれるため、外部通信なしで表示できます。</div>
       </div>
@@ -605,7 +610,7 @@
       <h3>操作</h3>
       <p>一覧の <code>⠿</code> をドラッグすると並べ替えできます。プレビュー上の図形や矢印をクリックすると、対応する項目が編集状態になります。図形以外の場所をクリックすると編集を解除します。</p>
       <p>色の指定には <code>↩ 戻す</code>（ひとつ前の色に戻す／最大20件）と <code>既定に戻す</code>（色の指定をやめる）があります。編集する項目を切り替えると履歴はリセットされます。</p>
-      <p>ヘッダーの <strong>キャンバス</strong> は、図のまわり（地）の色の設定です。図そのものは白地で描かれるので見え方は変わりません。<strong>この設定は保存物（.swim / .svg / .html）には含まれません。</strong></p>
+      <p>ヘッダーの <strong>キャンバス</strong> は、図のまわり（地）の色の設定です。図そのものは白地で描かれるので見え方は変わりません。<strong>この設定は保存物（.swim / .svg / .png / .html）には含まれません。</strong></p>
     </div>
   </div>
 </div>
@@ -748,7 +753,11 @@
    VS Code 拡張として動かすときは、ビルドがこの Host だけを差し替える（本体は変更しない）。
    Webview では alert / confirm が動かず <a download> も禁止のため、直接呼ばず必ず Host 経由にする。 */
 const Host = {
-  saveFile(filename, mime, content){ downloadBlob(content, filename, mime); },
+  /* content は文字列。PNG のようなバイナリは base64 の文字列にして
+     opt = { encoding:'base64' } を添える（Webview へは文字列しか渡せないため）。 */
+  saveFile(filename, mime, content, opt){
+    downloadBlob(opt && opt.encoding === 'base64' ? base64ToBytes(content) : content, filename, mime);
+  },
   openFile(){
     return new Promise(resolve=>{
       const input = document.getElementById('fileInput');
@@ -848,6 +857,23 @@ function checkDuplicateId(id, oldId){
 
 function allIds(){
   return [...state.lanes, ...state.phases, ...state.nodes].map(x=>x.id);
+}
+/* base64 の文字列をバイト列に戻す。PNG を Blob にするために使う。 */
+function base64ToBytes(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+/* バイト列を base64 にする。btoa は多バイト文字をそのまま渡せないので、
+   いったん1バイトずつの文字列にしてから渡す（SVGの日本語対策）。 */
+function bytesToBase64(bytes){
+  let bin = '';
+  const CHUNK = 0x8000;   // 引数を一度に渡しすぎるとスタックが溢れるため小分けにする
+  for(let i = 0; i < bytes.length; i += CHUNK){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
 }
 function downloadBlob(content, filename, mime){
   const blob = new Blob([content], { type: mime });
@@ -1723,22 +1749,76 @@ document.getElementById('btnCopyMd').addEventListener('click', ()=>{
 document.getElementById('btnDownloadSwim').addEventListener('click', ()=>{
   Host.saveFile('diagram.swim', 'text/plain', document.getElementById('codeArea').value + '\n');
 });
-document.getElementById('btnDownloadSvg').addEventListener('click', ()=>{
+/* 保存用のSVGを作る。編集のためにプレビューへ足している物を落とした複製を返す。
+   図が無ければ知らせて null を返す。 */
+function exportSvg(){
   const svgEl = document.querySelector('#preview svg');
-  if(!svgEl){ Host.alert('先に図を作成してください。'); return; }
+  if(!svgEl){ Host.alert('先に図を作成してください。'); return null; }
   const clean = svgEl.cloneNode(true);
   // クリック用に重ねている透明線は保存物に含めない
   clean.querySelectorAll('.sl-hit').forEach(el=>el.remove());
   clean.querySelectorAll('[data-pick]').forEach(el=>{ el.removeAttribute('data-pick'); el.removeAttribute('data-idx'); });
+  return clean;
+}
+
+/* PNG の倍率。等倍だと文字がにじむので、貼り付け先で縮小される前提で2倍にする。 */
+const PNG_SCALE = 2;
+/* キャンバスの面積の上限（ブラウザ側の制限はおよそ2.68億画素）。
+   横長の大きな図で上限に当たると、何も描かれない真っ白なPNGになるため手前で倍率を下げる。 */
+const PNG_MAX_PIXELS = 2.4e8;
+
+/* 表示中の図をPNG（base64）にする。
+   SVGを <img> に読ませて <canvas> に描く方式。外部の画像を参照していないので
+   キャンバスは汚染されず、そのまま toDataURL が使える。
+   フォントは描画エンジンがSVGのルートに font-family を書いているため画面と同じになる
+   （このツールはWebフォントを読んでいないので、画像化で字体が変わらない）。
+   地が透明にならないのは、描画エンジンが図の下に白い矩形を敷いているため。 */
+function svgToPngBase64(svgEl){
+  return new Promise((resolve, reject)=>{
+    const w = parseFloat(svgEl.getAttribute('width'));
+    const h = parseFloat(svgEl.getAttribute('height'));
+    if(!(w > 0 && h > 0)){ reject(new Error('図の大きさが取れませんでした。')); return; }
+    let scale = PNG_SCALE;
+    while(scale > 1 && w * scale * h * scale > PNG_MAX_PIXELS) scale -= 0.5;
+    const text = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(svgEl);
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({ base64: canvas.toDataURL('image/png').split(',')[1], w: canvas.width, h: canvas.height });
+      }catch(err){ reject(err); }
+    };
+    img.onerror = ()=> reject(new Error('図を画像に変換できませんでした。'));
+    // Webview の CSP は blob: を許していないので data: で渡す
+    img.src = 'data:image/svg+xml;base64,' + bytesToBase64(new TextEncoder().encode(text));
+  });
+}
+
+document.getElementById('btnDownloadSvg').addEventListener('click', ()=>{
+  const clean = exportSvg();
+  if(!clean) return;
   const text = new XMLSerializer().serializeToString(clean);
   Host.saveFile('diagram.svg', 'image/svg+xml', '<?xml version="1.0" encoding="UTF-8"?>\n' + text);
 });
+document.getElementById('btnDownloadPng').addEventListener('click', async ()=>{
+  const clean = exportSvg();
+  if(!clean) return;
+  try{
+    const png = await svgToPngBase64(clean);
+    Host.saveFile('diagram.png', 'image/png', png.base64, { encoding:'base64' });
+  }catch(err){
+    Host.alert(String((err && err.message) || err));
+  }
+});
 document.getElementById('btnDownloadHtml').addEventListener('click', ()=>{
-  const svgEl = document.querySelector('#preview svg');
-  if(!svgEl){ Host.alert('先に図を作成してください。'); return; }
-  const clean = svgEl.cloneNode(true);
-  clean.querySelectorAll('.sl-hit').forEach(el=>el.remove());
-  clean.querySelectorAll('[data-pick]').forEach(el=>{ el.removeAttribute('data-pick'); el.removeAttribute('data-idx'); });
+  const clean = exportSvg();
+  if(!clean) return;
   const svgText = new XMLSerializer().serializeToString(clean);
   const html = `<!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8"><title>${esc(state.title || 'Swimlane Diagram')}</title>

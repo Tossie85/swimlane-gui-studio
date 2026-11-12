@@ -17,8 +17,9 @@ function makeNonce() {
   return out;
 }
 
-/** 保存先を尋ねて書き込む。キャンセルされたら false を返す。 */
-async function saveFile(filename, content) {
+/** 保存先を尋ねて書き込む。キャンセルされたら false を返す。
+    encoding が 'base64' のとき、content は base64 の文字列（PNG などのバイナリ）。 */
+async function saveFile(filename, content, encoding) {
   const ext = path.extname(filename).replace('.', '') || 'txt';
   const uri = await vscode.window.showSaveDialog({
     saveLabel: '保存',
@@ -26,7 +27,7 @@ async function saveFile(filename, content) {
     filters: { [ext.toUpperCase()]: [ext] },
   });
   if (!uri) return { saved: false };
-  await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+  await vscode.workspace.fs.writeFile(uri, Buffer.from(content, encoding === 'base64' ? 'base64' : 'utf8'));
   vscode.window.showInformationMessage(`保存しました: ${path.basename(uri.fsPath)}`);
   return { saved: true, path: uri.fsPath };
 }
@@ -125,7 +126,7 @@ function activate(context) {
       if (!msg || msg.type !== 'request') return;
       let payload = null;
       try {
-        if (msg.action === 'saveFile') payload = await saveFile(msg.payload.filename, msg.payload.content);
+        if (msg.action === 'saveFile') payload = await saveFile(msg.payload.filename, msg.payload.content, msg.payload.encoding);
         else if (msg.action === 'openFile') payload = await openFile();
       } catch (err) {
         vscode.window.showErrorMessage(String((err && err.message) || err));

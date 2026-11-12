@@ -195,7 +195,9 @@ const VSCODE_HOST = `
     });
   }
 
-  Host.saveFile = (filename, mime, content)=> call('saveFile', { filename, content });
+  // PNG のようなバイナリは base64 の文字列で渡す（Webview からは文字列しか送れない）
+  Host.saveFile = (filename, mime, content, opt)=>
+    call('saveFile', { filename, content, encoding: (opt && opt.encoding) || 'utf8' });
   Host.openFile = ()=> call('openFile');
 })();
 </script>
