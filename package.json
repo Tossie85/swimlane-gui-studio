@@ -2,7 +2,7 @@
   "name": "swimlane-gui-studio",
   "displayName": "Swimlane GUI Studio",
   "description": "スイムレーン図（業務フロー図）をGUIで組み立て、.swim コードを取り込めるエディタ。",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "tossie85",
   "license": "MIT",
   "icon": "resources/icon.png",

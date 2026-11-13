@@ -1,5 +1,13 @@
 # 変更履歴
 
+## 1.0.1
+
+- **変更履歴から踏めないリンクを外した。** `vsce package` は相対リンクを `package.json` の
+  `repository` のURLへ書き換えるが、ソースを置いているリポジトリが非公開なので、
+  Marketplace の Changelog から踏むと404になっていた。リンクをやめ、ファイル名だけを残した。
+  README は 0.1.3 で同じ対応を済ませてあり、**CHANGELOG も同じ扱いに揃える**。
+  （ソースを公開リポジトリへ移す作業が進めば、この制約は無くなる）
+
 ## 1.0.0
 
 - **図を PNG で保存できるようにした。** ツールバーに `.png 保存` を足した。SVGを貼れない所
@@ -65,7 +73,7 @@
   リポジトリが非公開なので辿れなかった。リンク先を
   [opensource.org](https://opensource.org/licenses/MIT) の絶対URLにし、
   ライセンス本文は同梱の `LICENSE` を見てもらう形にした。
-  **README に相対リンクを書かないこと**（[PUBLISHING.md](PUBLISHING.md) 参照）。
+  **README に相対リンクを書かないこと**（リポジトリの `PUBLISHING.md` 参照）。
 
 ## 0.1.2
 
