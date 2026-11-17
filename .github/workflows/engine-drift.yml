@@ -1,0 +1,27 @@
+# 同梱している描画エンジンの複製が、本家（swimlane-diagram）とズレていないかを見る。
+#
+# 複製を手でコピーしていた頃に追従漏れを起こしているため、気づける場所を増やしておく。
+# 毎週の定期実行。失敗したら web-tools-lab/sync-engine.sh を実行して配り直す。
+name: engine-drift
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 本家のエンジンと突き合わせる
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Tossie85/swimlane-diagram/main/swimlane.js -o /tmp/upstream.js
+          # 改行コードの違いを落としてから比べる（手元は CRLF、GitHub の中身は LF）
+          if diff -q <(tr -d '\r' < vendor/swimlane.js) <(tr -d '\r' < /tmp/upstream.js) > /dev/null; then
+            echo "vendor/swimlane.js は本家と一致しています。"
+          else
+            echo "::error::vendor/swimlane.js が本家（swimlane-diagram）とズレています。web-tools-lab/sync-engine.sh を実行して配り直してください。"
+            exit 1
+          fi
