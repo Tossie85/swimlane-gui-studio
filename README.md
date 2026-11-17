@@ -50,6 +50,20 @@ Web版（ブラウザだけで動く同じツール）は <https://tossie85.site
   図そのものの配色は、保存物の見た目が変わらないよう固定にしています。
 - **往復できる記法** — `lane=` `phase=` のような名前付き属性なので、項目が増えても古いファイルをそのまま読み込めます。
 
+## 開発
+
+依存パッケージはありません。クローンすればそのまま動きます。
+
+```
+npm run build     # media/ に Webview 用の HTML とエンジンを生成する
+npm test          # 生成物が拡張として成立しているかを10件の観点で検める
+npm run preview   # VS Code なしでブラウザから見られるコピーを作る
+```
+
+Web版と同じ `tools/swimlane-gui-studio.html` と `vendor/swimlane.js` から、
+Webview 用の `media/index.html` を組み立てています。`media/` は生成物なので
+リポジトリには持たず、`.vsix` を作るときに毎回作り直します。
+
 ## ライセンス
 
 [MIT](LICENSE)

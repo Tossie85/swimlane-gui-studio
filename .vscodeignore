@@ -6,8 +6,6 @@ build/**
 vendor/**
 tools/**
 .github/**
-DEVELOPMENT.md
-PUBLISHING.md
 resources/icon.marketplace.svg
 **/*.map
 .gitignore
