@@ -5,6 +5,7 @@
 既存の `.swim` コードを読み込んで、続きを GUI で編集することもできます。
 
 Web版（ブラウザだけで動く同じツール）は <https://tossie85.site/tools/swimlane-gui-studio.html> で公開しています。
+図を描いているエンジンは [swimlane-diagram](https://github.com/Tossie85/swimlane-diagram) で、単体でも使えます。
 
 ## スイムレーン図とは
 
@@ -51,4 +52,4 @@ Web版（ブラウザだけで動く同じツール）は <https://tossie85.site
 
 ## ライセンス
 
-[MIT License](https://opensource.org/licenses/MIT)（同梱の `LICENSE` を参照）
+[MIT](LICENSE)
