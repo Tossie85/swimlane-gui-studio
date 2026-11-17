@@ -1,0 +1,8 @@
+node_modules/
+*.vsix
+
+# build/make-webview.mjs が生成する。配布物には入るがリポジトリには持たない
+media/
+
+# build/make-preview.mjs が生成する動作確認用の一時物
+tools/_webview_preview/

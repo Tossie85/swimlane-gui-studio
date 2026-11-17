@@ -3,14 +3,14 @@
  * acquireVsCodeApi だけスタブして、VS Code なしでブラウザから開けるコピーを作る。
  *
  * 生成先の tools/_webview_preview/ は動作確認のための一時物で、リポジトリには含めない。
- * 実行: node vscode-extensions/swimlane/build/make-preview.mjs
+ * 実行: node build/make-preview.mjs（npm run preview）
  */
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, '..', '..', '..');
+const repoRoot = resolve(here, '..');
 const SRC = resolve(here, '..', 'media', 'index.html');
 const SRC_LIB = resolve(here, '..', 'media', 'swimlane.js');
 const OUT_DIR = resolve(repoRoot, 'tools', '_webview_preview');
