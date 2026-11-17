@@ -1,0 +1,27 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # SGS の HTML から Webview 用 HTML を生成する。
+      # 差し替え対象が1つでも見つからなければ make-webview.mjs 自身が異常終了するので、
+      # 「SGS を直したらビルドが通らなくなった」をここで捕まえられる。
+      - name: webview を生成して検める
+        run: npm test
+
+      # VS Code なしで開ける確認用コピーも作れることを見ておく
+      - name: プレビュー用コピーを生成する
+        run: node build/make-preview.mjs
