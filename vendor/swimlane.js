@@ -1056,6 +1056,97 @@ function linkPath(a, b, dir, jogIdx, ctx){
            tip:{ x:b.x, y:bc.y, dirn:'right' }, mid:{ x:leftX, y:(topY + bc.y)/2 } };
 }
 
+/* 角の丸み。大きくすると曲がりが分かりやすくなるが、短い区間では潰れる。 */
+const CORNER_R = 9;
+/* 交差の「またぎ」の半幅。線の太さ1.6pxに対して見て分かる大きさにする。 */
+const HOP_R = 5;
+
+const fmtN = (v)=> (Math.round(v * 10) / 10);
+
+function segLength(s){ return Math.abs(s[2] - s[0]) + Math.abs(s[3] - s[1]); }
+
+/* 直角の折れ線を、描画用の d に変換する。
+     ・角を丸める … 上からと下からの線が同じ向きへ折れていることが見て分かる
+     ・交差点をまたぐ … 交差しているのか合流しているのかを見分けられる
+   判定（貫通・重なり・ラベルの当たり）はすべて直角の経路のまま行う。
+   ここは最後に見た目を作るだけなので、座標の意味は変えない。 */
+function decoratePath(segs, hops){
+  if(!segs.length) return '';
+  const pts = [];
+  segs.forEach((sg, k)=>{
+    const len = segLength(sg) || 1;
+    const ux = (sg[2] - sg[0]) / len, uy = (sg[3] - sg[1]) / len;
+    const rIn  = k > 0 ? Math.min(CORNER_R, len / 2, segLength(segs[k - 1]) / 2) : 0;
+    const rOut = k < segs.length - 1 ? Math.min(CORNER_R, len / 2, segLength(segs[k + 1]) / 2) : 0;
+    pts.push({
+      sg, ux, uy,
+      a: { x: sg[0] + ux * rIn,  y: sg[1] + uy * rIn  },
+      b: { x: sg[2] - ux * rOut, y: sg[3] - uy * rOut },
+    });
+  });
+  const out = ['M ' + fmtN(pts[0].a.x) + ' ' + fmtN(pts[0].a.y)];
+  pts.forEach((n, k)=>{
+    // この区間の上にある交差点を、進む向きに並べてまたぐ
+    const horiz = Math.abs(n.uy) < 1e-9;
+    const lo = Math.min(n.a.x, n.b.x) + HOP_R + 2, hi = Math.max(n.a.x, n.b.x) - HOP_R - 2;
+    const on = horiz
+      ? hops.filter(h=> Math.abs(h.y - n.sg[1]) < 1.2 && h.x >= lo && h.x <= hi)
+             .sort((u, v)=> (n.ux > 0 ? u.x - v.x : v.x - u.x))
+      : [];
+    on.forEach(h=>{
+      const sx = h.x - n.ux * HOP_R, ex = h.x + n.ux * HOP_R;
+      out.push('L ' + fmtN(sx) + ' ' + fmtN(n.sg[1]));
+      // 上へ膨らむ小さな山。制御点を高めに取ると半円に近く見える
+      out.push('Q ' + fmtN(h.x) + ' ' + fmtN(n.sg[1] - HOP_R * 1.4) + ' ' + fmtN(ex) + ' ' + fmtN(n.sg[1]));
+    });
+    out.push('L ' + fmtN(n.b.x) + ' ' + fmtN(n.b.y));
+    const next = pts[k + 1];
+    if(next){
+      out.push('Q ' + fmtN(n.sg[2]) + ' ' + fmtN(n.sg[3]) + ' ' + fmtN(next.a.x) + ' ' + fmtN(next.a.y));
+    }
+  });
+  return out.join(' ');
+}
+
+/* 線どうしの交わりを「交差」と「合流」に分ける。
+     交差 … 互いの区間の途中で十字に交わる。またいで通り過ぎる
+     合流 … どちらかの端（ノードへの出入りや分岐の根元）で接する。点を打つ
+   見分けが付かないと、関係の無い2本が1本につながって見える。 */
+function crossingsAndJunctions(renders){
+  const list = renders.filter(Boolean).map(it=> ({ i: it.i, segs: pathSegmentsOf(it.p.d) }));
+  const hopsBy = new Map(list.map(it=> [it.i, []]));
+  const joints = [];
+  const near = (a, b)=> Math.abs(a - b) < 2.5;
+  const isEnd = (sg, x, y)=> (near(sg[0], x) && near(sg[1], y)) || (near(sg[2], x) && near(sg[3], y));
+  list.forEach(A=>{
+    A.segs.forEach(h=>{
+      if(Math.abs(h[1] - h[3]) > 0.5) return;                 // 横の区間だけがまたぐ
+      const hx1 = Math.min(h[0], h[2]), hx2 = Math.max(h[0], h[2]);
+      list.forEach(B=>{
+        if(B.i === A.i) return;
+        B.segs.forEach(v=>{
+          if(Math.abs(v[0] - v[2]) > 0.5) return;             // 縦の区間とだけ交わる
+          const vy1 = Math.min(v[1], v[3]), vy2 = Math.max(v[1], v[3]);
+          const x = v[0], y = h[1];
+          if(x < hx1 - 0.5 || x > hx2 + 0.5) return;
+          if(y < vy1 - 0.5 || y > vy2 + 0.5) return;
+          // どちらかの端で接しているなら合流。またがずに点を打つ
+          if(isEnd(h, x, y) || isEnd(v, x, y)){
+            if(!joints.some(j=> near(j.x, x) && near(j.y, y))) joints.push({ x, y });
+            return;
+          }
+          // 端から近すぎる所は、またぐと角とぶつかるので見送る
+          if(x - hx1 < HOP_R + 2 || hx2 - x < HOP_R + 2) return;
+          if(y - vy1 < HOP_R + 2 || vy2 - y < HOP_R + 2) return;
+          const arr = hopsBy.get(A.i);
+          if(!arr.some(q=> near(q.x, x) && near(q.y, y))) arr.push({ x, y });
+        });
+      });
+    });
+  });
+  return { hopsBy, joints };
+}
+
 function arrowHead(tip){
   const s = 7;
   const { x, y, dirn } = tip;
@@ -1568,13 +1659,16 @@ function drawSvg(state){
     });
   }
 
+  const { hopsBy, joints } = crossingsAndJunctions(linkRenders);
   linkRenders.forEach(item=>{
     if(!item) return;
     const { e, i, p } = item;
     const dash = e.style === 'dashed' ? ' stroke-dasharray="6 4"' : '';
+    // 見た目だけ角丸＋またぎにする。当たり判定（class="sl-hit"）は直角のままでよい
+    const shown = decoratePath(pathSegmentsOf(p.d), hopsBy.get(i) || []) || p.d;
     out.push(`<g>`);
     out.push(`<path class="sl-hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="14" data-pick="link" data-idx="${i}"></path>`);
-    out.push(`<path d="${p.d}" fill="none" stroke="#42506B" stroke-width="1.6"${dash} data-pick="link" data-idx="${i}"></path>`);
+    out.push(`<path d="${shown}" fill="none" stroke="#42506B" stroke-width="1.6"${dash} stroke-linecap="round" stroke-linejoin="round" data-pick="link" data-idx="${i}"></path>`);
     out.push(arrowHead(p.tip));
     if(e.label){
       const tw = labelPixelWidth(e.label);
@@ -1584,6 +1678,11 @@ function drawSvg(state){
     out.push(`</g>`);
   });
 
+  // 合流している所に点を打つ。またぎ（交差）と見分けが付くようにする
+  joints.forEach(j=>{
+    out.push(`<circle cx="${fmtN(j.x)}" cy="${fmtN(j.y)}" r="3.2" fill="#42506B"></circle>`);
+  });
+
   // 図形
   lay.boxes.forEach(b=>{
     const n = b.node;
@@ -1591,9 +1690,14 @@ function drawSvg(state){
     out.push(`<g data-pick="node" data-idx="${b.index}">`);
     out.push(shapeElement(b, n.shape, fill));
     if(isDot(n.shape)){
-      // ●の中には文字を入れず、ラベルがあるときだけ真下に添える
+      // ●の中には文字を入れず、ラベルがあるときだけ真下に添える。
+      // ●から出る線はこのラベルの真上を通るので、接続ラベルと同じ白い箱を敷く。
+      // 箱が無いと、線が文字を縦に貫いて読めない。
       if(n.label){
-        out.push(`<text x="${b.x + b.w/2}" y="${b.y + b.h + 13}" text-anchor="middle" font-size="11" fill="#3C516C">${esc(n.label)}</text>`);
+        const tw = labelPixelWidth(n.label);
+        const cx = b.x + b.w / 2, base = b.y + b.h + 13;
+        out.push(`<rect x="${cx - tw/2}" y="${base - 13}" width="${tw}" height="18" rx="4" fill="#FFFFFF" stroke="#D3E1EF"></rect>`);
+        out.push(`<text x="${cx}" y="${base}" text-anchor="middle" font-size="11" fill="#3C516C">${esc(n.label)}</text>`);
       }
     }else{
       const lines = wrapLabel(n.label, n.shape === 'decision' ? 12 : 16, 3);
@@ -1635,7 +1739,7 @@ function renderTo(target, code){
 }
 
 return {
-  VERSION: '1.1.0',
+  VERSION: '1.2.0',
   SHAPES,
   LINK_STYLES,
   isDot,
