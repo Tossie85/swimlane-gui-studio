@@ -1068,6 +1068,7 @@ function segLength(s){ return Math.abs(s[2] - s[0]) + Math.abs(s[3] - s[1]); }
 /* 直角の折れ線を、描画用の d に変換する。
      ・角を丸める … 上からと下からの線が同じ向きへ折れていることが見て分かる
      ・交差点をまたぐ … 交差しているのか合流しているのかを見分けられる
+                        （合流は、またがずにカーブで寄り添う）
    判定（貫通・重なり・ラベルの当たり）はすべて直角の経路のまま行う。
    ここは最後に見た目を作るだけなので、座標の意味は変えない。 */
 function decoratePath(segs, hops){
@@ -1127,14 +1128,16 @@ function decoratePath(segs, hops){
   return out.join(' ');
 }
 
-/* 線どうしの交わりを「交差」と「合流」に分ける。
+/* 線どうしの交わりを「交差」と「合流」に分ける。またぐのは交差だけ。
      交差 … 互いの区間の途中で十字に交わる。またいで通り過ぎる
-     合流 … どちらかの端（ノードへの出入りや分岐の根元）で接する。点を打つ
-   見分けが付かないと、関係の無い2本が1本につながって見える。 */
+     合流 … どちらかの端（ノードへの出入りや分岐の根元）で接する。素通しにする
+   合流にはかつて点を打っていたが、角を丸めてからは、寄り添うカーブで合流と分かる
+   ようになったのでやめた（1.2.1）。交差は「またぎ」が、合流は「カーブ」が目印になる。
+   なお2本が同じ軌道に完全に重なる形では、点があっても見分けは付かなかった。
+   そこは経路側で軌道を分ける話なので、別の課題として残してある。 */
 function crossingsAndJunctions(renders){
   const list = renders.filter(Boolean).map(it=> ({ i: it.i, segs: pathSegmentsOf(it.p.d) }));
   const hopsBy = new Map(list.map(it=> [it.i, []]));
-  const joints = [];
   const near = (a, b)=> Math.abs(a - b) < 2.5;
   const isEnd = (sg, x, y)=> (near(sg[0], x) && near(sg[1], y)) || (near(sg[2], x) && near(sg[3], y));
   list.forEach(A=>{
@@ -1149,11 +1152,8 @@ function crossingsAndJunctions(renders){
           const x = v[0], y = h[1];
           if(x < hx1 - 0.5 || x > hx2 + 0.5) return;
           if(y < vy1 - 0.5 || y > vy2 + 0.5) return;
-          // どちらかの端で接しているなら合流。またがずに点を打つ
-          if(isEnd(h, x, y) || isEnd(v, x, y)){
-            if(!joints.some(j=> near(j.x, x) && near(j.y, y))) joints.push({ x, y });
-            return;
-          }
+          // どちらかの端で接しているなら合流。またがない
+          if(isEnd(h, x, y) || isEnd(v, x, y)) return;
           // 端のすぐ際は、またいでも山がつぶれるだけなので見送る。
           // 少し内側であれば、角丸を小さくしてでもまたぐ（decoratePath 側で調整する）。
           if(x - hx1 < 3 || hx2 - x < 3) return;
@@ -1164,7 +1164,7 @@ function crossingsAndJunctions(renders){
       });
     });
   });
-  return { hopsBy, joints };
+  return { hopsBy };
 }
 
 function arrowHead(tip){
@@ -1679,7 +1679,7 @@ function drawSvg(state){
     });
   }
 
-  const { hopsBy, joints } = crossingsAndJunctions(linkRenders);
+  const { hopsBy } = crossingsAndJunctions(linkRenders);
   linkRenders.forEach(item=>{
     if(!item) return;
     const { e, i, p } = item;
@@ -1696,11 +1696,6 @@ function drawSvg(state){
       out.push(`<text x="${p.mid.x}" y="${p.mid.y + 4}" text-anchor="middle" font-size="11" fill="#3C516C" data-pick="link" data-idx="${i}">${esc(e.label)}</text>`);
     }
     out.push(`</g>`);
-  });
-
-  // 合流している所に点を打つ。またぎ（交差）と見分けが付くようにする
-  joints.forEach(j=>{
-    out.push(`<circle cx="${fmtN(j.x)}" cy="${fmtN(j.y)}" r="3.2" fill="#42506B"></circle>`);
   });
 
   // 図形
@@ -1759,7 +1754,7 @@ function renderTo(target, code){
 }
 
 return {
-  VERSION: '1.2.0',
+  VERSION: '1.2.1',
   SHAPES,
   LINK_STYLES,
   isDot,

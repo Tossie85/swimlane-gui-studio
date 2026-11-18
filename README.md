@@ -56,7 +56,7 @@ swimlane
 ```
 
 置き場所の指定は `lane=`（誰が）と `phase=`（どの工程で）だけで、座標は書きません。
-線の通り道・交差のまたぎ・合流の点は、描画エンジン
+線の通り道・交差のまたぎ・合流のカーブは、描画エンジン
 [swimlane-diagram](https://github.com/Tossie85/swimlane-diagram) が決めます。
 
 ## スイムレーン図とは
