@@ -1,7 +1,10 @@
 # .vsix に含めないもの。
 # media/ は build/make-webview.mjs（vscode:prepublish）が生成する実行時アセットなので含める。
+# docs/ は README の図。vsce が相対リンクを GitHub の URL に書き換えるので、
+# .vsix に入れる必要はない。
 
 build/**
+docs/**
 .vscode/**
 vendor/**
 tools/**

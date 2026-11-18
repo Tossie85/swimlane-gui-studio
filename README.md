@@ -7,6 +7,58 @@
 Web版（ブラウザだけで動く同じツール）は <https://tossie85.site/tools/swimlane-gui-studio.html> で公開しています。
 図を描いているエンジンは [swimlane-diagram](https://github.com/Tossie85/swimlane-diagram) で、単体でも使えます。
 
+## どんな図が描けるか
+
+![受注から入金までの流れの例](docs/example.png)
+
+レーン・フェーズ・図形・接続をフォームで足していくと、図と一緒に次のコードができます。
+逆に、このコードを読み込んで続きを GUI で編集することもできます。
+
+```
+swimlane
+    title "受注から入金までの流れ"
+    direction TB
+
+    lane sales "営業" #FFF1E0
+    lane back "業務" #E6EFFC
+    lane ware "倉庫" #E7F6EC
+
+    phase p1 "受付"
+    phase p2 "出荷"
+    phase p3 "請求"
+
+    node s "引合" lane=sales phase=p1 shape=startdot
+    node n1 "見積を出す" lane=sales phase=p1
+    node n2 "注文を受ける" lane=sales phase=p1 shape=io
+    node d1 "与信は足りるか" lane=back phase=p1 shape=decision
+    node n3 "条件を見直す" lane=sales phase=p1 color=#FFE0E0
+    node n4 "受注を登録する" lane=back phase=p2
+    node d2 "在庫はあるか" lane=ware phase=p2 shape=decision
+    node n5 "取り寄せる" lane=ware phase=p2 color=#FFF3D6
+    node n6 "出荷する" lane=ware phase=p2
+    node n7 "請求書を送る" lane=back phase=p3
+    node n8 "入金を確認する" lane=back phase=p3
+    node e "完了" lane=back phase=p3 shape=enddot
+
+    s -> n1
+    n1 -> n2
+    n2 -> d1 "審査を依頼"
+    d1 -> n4 "OK"
+    d1 -> n3 "NG"
+    n3 -> n2 "再見積"
+    n4 -> d2 "出荷を指示"
+    d2 -> n6 "あり"
+    d2 -> n5 "なし"
+    n5 -> n6 "入荷後"
+    n6 --> n7 "出荷を通知"
+    n7 -> n8
+    n8 -> e
+```
+
+置き場所の指定は `lane=`（誰が）と `phase=`（どの工程で）だけで、座標は書きません。
+線の通り道・交差のまたぎ・合流の点は、描画エンジン
+[swimlane-diagram](https://github.com/Tossie85/swimlane-diagram) が決めます。
+
 ## スイムレーン図とは
 
 レーン（横帯＝担当）とフェーズ（縦の区切り＝工程）の交点にタスクを置いて、業務の流れを整理する図です。
