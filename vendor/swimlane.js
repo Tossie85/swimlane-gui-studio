@@ -61,8 +61,11 @@ const SHAPES = [
 /* 開始/終了の「●」。状態遷移図の [*] にあたるもので、他の図形より小さく描く */
 const DOT_SHAPES = ['startdot','enddot'];
 const DOT_SIZE = 26;
-/* ●と接続先ノードの間隔。矢印の棒（矢じり約7px＋軸）がはっきり見える長さにする。 */
-const DOT_GAP = 20;
+/* ●と接続先ノードの間隔。
+   矢印の棒（矢じり約7px＋軸）が見えるだけでなく、●のラベル（●の真下に添える）が
+   次のノードに貼り付かない長さにする。20pxだとラベルの下端とノードの上端が7pxしか
+   空かず、「引合」と「見積を出す」が1つの塊に見えていた。 */
+const DOT_GAP = 34;
 const DOT_SLOT = DOT_SIZE + DOT_GAP;
 const isDot = (shape)=> DOT_SHAPES.includes(shape);
 const LINK_STYLES = [
@@ -604,6 +607,24 @@ function computeLayout(state){
         if(f !== pos.flow) nodePos.set(n.id, { flow: f, cross: pos.cross });
       });
     }));
+    // 押し下げの結果、どのレーンも使っていない段（flow）が空いたまま残ることがある。
+    // 例: n1→n2 で n2 を1つ下げたとき、その段を塞いでいた n3 が後からさらに下がると、
+    // 間の段が誰にも使われないまま残る。段はフェーズ内でレーンをまたいで揃えているので、
+    // 「どのレーンも使っていない段」だけを詰めれば、レーン間の対応は保ったまま
+    // 無駄な空白を消せる（「見積を出す→注文を受ける」が他の2.7倍空いていた原因）。
+    phases.forEach(p=>{
+      const used = new Set();
+      lanes.forEach(l=> (cell.get(key(l.id, p.id)) || []).forEach(n=>{
+        const pp = nodePos.get(n.id);
+        if(pp) used.add(pp.flow);
+      }));
+      if(!used.size) return;
+      const remap = new Map([...used].sort((a, b)=> a - b).map((f, i)=> [f, i]));
+      lanes.forEach(l=> (cell.get(key(l.id, p.id)) || []).forEach(n=>{
+        const pp = nodePos.get(n.id);
+        if(pp) nodePos.set(n.id, { flow: remap.get(pp.flow), cross: pp.cross });
+      }));
+    });
     // 下げた分、各セルの流れ数を数え直す
     lanes.forEach(l=> phases.forEach(p=>{
       let mx = 0;
@@ -1421,6 +1442,60 @@ function drawSvg(state){
   // 同じノードの同じ辺から出る線の根元を、辺に沿って等間隔に並べ直す（要求5）
   spreadRoots(linkRenders, lay.boxById);
 
+  /* 接続ラベルの上を他の線が通ると、文字も線も読めなくなる
+     （戻りの「再見積」が「審査を依頼」の箱を縦に貫いていた）。
+     線のほうを曲げて逃がすと、同じレーン内の戻りの辺が隣のレーンまで遠回りしてしまうので、
+     ラベルのほうを**自分の経路に沿って**前後へずらす。経路から離れないので、
+     どの線のラベルなのかは見たままで分かる。 */
+  {
+    const labelBoxOf = (mid, label)=>{
+      const tw = labelPixelWidth(label);
+      return { x: mid.x - tw/2 - 3, y: mid.y - 12, w: tw + 6, h: 24 };
+    };
+    // 経路（折れ線）の長さ t（0〜1）の位置を返す
+    const pointAt = (segs, t)=>{
+      const lens = segs.map(([x1, y1, x2, y2])=> Math.abs(x2 - x1) + Math.abs(y2 - y1));
+      const total = lens.reduce((a, b)=> a + b, 0);
+      if(!total) return null;
+      let want = total * t;
+      for(let k = 0; k < segs.length; k++){
+        if(want > lens[k]){ want -= lens[k]; continue; }
+        const [x1, y1, x2, y2] = segs[k];
+        const r = lens[k] ? want / lens[k] : 0;
+        return { x: x1 + (x2 - x1) * r, y: y1 + (y2 - y1) * r };
+      }
+      return null;
+    };
+    const overlaps = (a, b)=>
+      !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+    const segsOf = new Map();
+    linkRenders.forEach(item=>{ if(item) segsOf.set(item.i, pathSegmentsOf(item.p.d)); });
+    const placedBoxes = [];
+    linkRenders.forEach(item=>{
+      if(!item || !item.e.label) return;
+      const others = [];
+      linkRenders.forEach(o=>{ if(o && o.i !== item.i) others.push(...(segsOf.get(o.i) || [])); });
+      const clear = (mid)=>{
+        const box = labelBoxOf(mid, item.e.label);
+        if(others.some(([x1, y1, x2, y2])=> segHitsBox(x1, y1, x2, y2, box))) return false;
+        return !placedBoxes.some(b=> overlaps(box, b));
+      };
+      let mid = item.p.mid;
+      if(mid && !clear(mid)){
+        // 真ん中から外側へ、少しずつ離れた位置を試す。最初に空いた所へ置く。
+        const own = segsOf.get(item.i) || [];
+        for(const t of [0.38, 0.62, 0.28, 0.72, 0.2, 0.8]){
+          const cand = pointAt(own, t);
+          if(cand && clear(cand)){ mid = cand; break; }
+        }
+      }
+      if(mid){
+        item.p.mid = mid;
+        placedBoxes.push(labelBoxOf(mid, item.e.label));
+      }
+    });
+  }
+
   // 経路がノードの並び（lay.width/height）よりはみ出すことがある（隙間を通る経路など）。
   // はみ出した分だけキャンバスを広げ、負の座標が出た場合は原点をずらして描画が切れないようにする。
   let minX = 0, minY = 0, maxX = lay.width, maxY = lay.height;
@@ -1560,7 +1635,7 @@ function renderTo(target, code){
 }
 
 return {
-  VERSION: '1.0.0',
+  VERSION: '1.1.0',
   SHAPES,
   LINK_STYLES,
   isDot,
