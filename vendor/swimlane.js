@@ -1072,33 +1072,52 @@ function segLength(s){ return Math.abs(s[2] - s[0]) + Math.abs(s[3] - s[1]); }
    ここは最後に見た目を作るだけなので、座標の意味は変えない。 */
 function decoratePath(segs, hops){
   if(!segs.length) return '';
+
+  // どの区間にどのまたぎが乗るかを先に決める。角丸の半径がこれに左右されるため。
+  // 角丸を先に決めてしまうと、角のすぐ先にある交差をまたげずに落としてしまう
+  // （受注フローの (340,358) がこれで素通りしていた）。
+  const onSeg = segs.map(sg=>{
+    if(Math.abs(sg[1] - sg[3]) > 0.5) return [];            // 横の区間だけがまたぐ
+    const lo = Math.min(sg[0], sg[2]), hi = Math.max(sg[0], sg[2]);
+    return hops.filter(h=> Math.abs(h.y - sg[1]) < 1.2 && h.x > lo && h.x < hi)
+               .sort((u, v)=> u.x - v.x);
+  });
+
   const pts = [];
   segs.forEach((sg, k)=>{
     const len = segLength(sg) || 1;
     const ux = (sg[2] - sg[0]) / len, uy = (sg[3] - sg[1]) / len;
-    const rIn  = k > 0 ? Math.min(CORNER_R, len / 2, segLength(segs[k - 1]) / 2) : 0;
-    const rOut = k < segs.length - 1 ? Math.min(CORNER_R, len / 2, segLength(segs[k + 1]) / 2) : 0;
+    // 端からいちばん近いまたぎまでの距離。角丸はその手前で止める
+    const list = onSeg[k];
+    const nearest = (px)=> list.length ? Math.min(...list.map(h=> Math.abs(h.x - px))) : Infinity;
+    const roomIn  = Math.max(0, nearest(sg[0]) - HOP_R - 2);
+    const roomOut = Math.max(0, nearest(sg[2]) - HOP_R - 2);
+    let rIn  = k > 0 ? Math.min(CORNER_R, len / 2, segLength(segs[k - 1]) / 2, roomIn) : 0;
+    let rOut = k < segs.length - 1 ? Math.min(CORNER_R, len / 2, segLength(segs[k + 1]) / 2, roomOut) : 0;
+    if(rIn < 2) rIn = 0;        // 丸めきれないほど狭ければ直角のままにする
+    if(rOut < 2) rOut = 0;
     pts.push({
       sg, ux, uy,
       a: { x: sg[0] + ux * rIn,  y: sg[1] + uy * rIn  },
       b: { x: sg[2] - ux * rOut, y: sg[3] - uy * rOut },
     });
   });
+
   const out = ['M ' + fmtN(pts[0].a.x) + ' ' + fmtN(pts[0].a.y)];
   pts.forEach((n, k)=>{
-    // この区間の上にある交差点を、進む向きに並べてまたぐ
-    const horiz = Math.abs(n.uy) < 1e-9;
-    const lo = Math.min(n.a.x, n.b.x) + HOP_R + 2, hi = Math.max(n.a.x, n.b.x) - HOP_R - 2;
-    const on = horiz
-      ? hops.filter(h=> Math.abs(h.y - n.sg[1]) < 1.2 && h.x >= lo && h.x <= hi)
-             .sort((u, v)=> (n.ux > 0 ? u.x - v.x : v.x - u.x))
-      : [];
-    on.forEach(h=>{
-      const sx = h.x - n.ux * HOP_R, ex = h.x + n.ux * HOP_R;
-      out.push('L ' + fmtN(sx) + ' ' + fmtN(n.sg[1]));
-      // 上へ膨らむ小さな山。制御点を高めに取ると半円に近く見える
-      out.push('Q ' + fmtN(h.x) + ' ' + fmtN(n.sg[1] - HOP_R * 1.4) + ' ' + fmtN(ex) + ' ' + fmtN(n.sg[1]));
-    });
+    // この区間のまたぎを、進む向きに並べて描く
+    onSeg[k].slice()
+      .sort((u, v)=> (n.ux > 0 ? u.x - v.x : v.x - u.x))
+      .forEach(h=>{
+        // 端（角丸の終わり）に近いときは山を小さくする。それでも狭ければ見送る
+        const room = Math.min(Math.abs(h.x - n.a.x), Math.abs(h.x - n.b.x)) - 1;
+        const r = Math.min(HOP_R, room);
+        if(r < 2.5) return;
+        const sx = h.x - n.ux * r, ex = h.x + n.ux * r;
+        out.push('L ' + fmtN(sx) + ' ' + fmtN(n.sg[1]));
+        // 上へ膨らむ小さな山。制御点を高めに取ると半円に近く見える
+        out.push('Q ' + fmtN(h.x) + ' ' + fmtN(n.sg[1] - r * 1.4) + ' ' + fmtN(ex) + ' ' + fmtN(n.sg[1]));
+      });
     out.push('L ' + fmtN(n.b.x) + ' ' + fmtN(n.b.y));
     const next = pts[k + 1];
     if(next){
@@ -1135,9 +1154,10 @@ function crossingsAndJunctions(renders){
             if(!joints.some(j=> near(j.x, x) && near(j.y, y))) joints.push({ x, y });
             return;
           }
-          // 端から近すぎる所は、またぐと角とぶつかるので見送る
-          if(x - hx1 < HOP_R + 2 || hx2 - x < HOP_R + 2) return;
-          if(y - vy1 < HOP_R + 2 || vy2 - y < HOP_R + 2) return;
+          // 端のすぐ際は、またいでも山がつぶれるだけなので見送る。
+          // 少し内側であれば、角丸を小さくしてでもまたぐ（decoratePath 側で調整する）。
+          if(x - hx1 < 3 || hx2 - x < 3) return;
+          if(y - vy1 < 3 || vy2 - y < 3) return;
           const arr = hopsBy.get(A.i);
           if(!arr.some(q=> near(q.x, x) && near(q.y, y))) arr.push({ x, y });
         });
