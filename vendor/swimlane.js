@@ -82,9 +82,18 @@ function quote(s){
 }
 /* 接続ラベルのおおよその表示幅（px）。ラベル背景の白丸角パネルの実際の幅と合わせて使う。
    全角文字は半角の約2倍として概算する（等幅ではないので目安値）。 */
+/* 接続ラベルの白い箱の高さ。描画と間隔の計算で同じ値を使う */
+const LABEL_BOX_H = 18;
 function labelPixelWidth(label){
   return [...String(label || '')].reduce((n, ch) => n + (/[\x00-\xff]/.test(ch) ? 6 : 11), 0) + 10;
 }
+/* 接続ラベルが「流れの向き」に要する大きさ（px）。
+   LR では文字の長さがそのまま効くが、TB では箱の高さ（18px）しか要らない。
+   ここを取り違えると、長いラベルが1つあるだけでフェーズ全体の段が間延びする。 */
+function labelMainExtent(label, dir){
+  return dir === 'LR' ? labelPixelWidth(label) + 16 : LABEL_BOX_H + 20;
+}
+
 /* 見出し（レーン名・フェーズ名）のおおよその表示幅（px）。
    太字なので、全角はフォントサイズとほぼ同じ幅、半角はその約6割として概算する。 */
 function headerTextWidth(label, fontSize){
@@ -683,30 +692,45 @@ function computeLayout(state){
       const ap = state.phases.length ? (A.phaseId || phases[0].id) : '__all';
       const bp = state.phases.length ? (B.phaseId || phases[0].id) : '__all';
       const aj = phases.findIndex(p=> p.id === ap), bj = phases.findIndex(p=> p.id === bp);
-      if((aj === j && bj === j + 1) || (aj === j + 1 && bj === j)) need = Math.max(need, labelPixelWidth(e.label) + 16);
+      if((aj === j && bj === j + 1) || (aj === j + 1 && bj === j)) need = Math.max(need, labelMainExtent(e.label, dir));
     });
     if(need) gapAfter[j] = Math.max(gapAfter[j], need);
   }
 
-  // フェーズ内にラベル付きの接続があると、流れ方向の間隔を広げてラベルの前後に棒を出す（要求1.2）。
-  // こちらも同様に、ラベルの実際の表示幅から必要な間隔を求める（要求1.2）。
-  const phaseGap = phases.map(p=>{
-    let need = L.gapInner;
+  /* 段と段の隙間は、その隙間を実際に何が通るかで決める（フェーズ内で一律にしない）。
+     ラベル付きの接続がまたぐ隙間だけを広げ、何も通らない隙間は gapInner のまま詰める。
+     一律にしていた頃は、長いラベルが1つあるだけでフェーズ全体が間延びしていた
+     （英語版の Intake が 110px、ラベルの無い Billing が 22px で、同じ図の中で揃わなかった）。 */
+  const phaseGapAt = phases.map((p, j)=>{
+    const gaps = new Array(Math.max(0, phaseRuns[j] - 1)).fill(L.gapInner);
+    if(!gaps.length) return gaps;
     state.links.forEach(e=>{
       if(!e.label) return;
       const A = state.nodes.find(n=> n.id === e.from), B = state.nodes.find(n=> n.id === e.to);
       if(!A || !B) return;
       const ap = state.phases.length ? (A.phaseId || phases[0].id) : '__all';
       const bp = state.phases.length ? (B.phaseId || phases[0].id) : '__all';
-      if(ap === p.id && bp === p.id) need = Math.max(need, labelPixelWidth(e.label) + 16);
+      if(ap !== p.id || bp !== p.id) return;
+      const pa = nodePos.get(A.id), pb = nodePos.get(B.id);
+      if(!pa || !pb) return;
+      const lo = Math.min(pa.flow, pb.flow), hi = Math.max(pa.flow, pb.flow);
+      const need = labelMainExtent(e.label, dir);
+      // 同じ段どうし（lo === hi）はレーンの間を横に走るので、段の隙間には関係しない
+      for(let r = lo; r < hi && r < gaps.length; r++) gaps[r] = Math.max(gaps[r], need);
     });
-    return need;
+    return gaps;
+  });
+  // フェーズの先頭から各段までの距離。隙間が段ごとに違うので足し上げて持つ
+  const phaseOffsets = phases.map((p, j)=>{
+    const offs = [0];
+    for(let r = 1; r < phaseRuns[j]; r++) offs.push(offs[r - 1] + nodeMain + phaseGapAt[j][r - 1]);
+    return offs;
   });
 
   const phaseBands = [];
   let main = mainStart;
   phases.forEach((p, j)=>{
-    let size = phaseRuns[j] * nodeMain + (phaseRuns[j] - 1) * phaseGap[j];
+    let size = phaseOffsets[j][phaseRuns[j] - 1] + nodeMain;
     // LRではフェーズ名が上の細い帯（高さ38px固定）に横書きで入る。縦には広げられないので、
     // 名前が帯より長いときは帯の長さ（流れ方向）を広げる。広げないとはみ出して切れる。
     if(hasPhaseHeader && dir === 'LR') size = Math.max(size, headerTextWidth(p.label, 12) + 16);
@@ -735,7 +759,7 @@ function computeLayout(state){
       const list = cell.get(key(l.id, p.id)) || [];
       list.forEach((n)=>{
         const { flow: col, cross: row } = nodePos.get(n.id);
-        const mainPos  = phaseBands[j].start + col * (nodeMain + phaseGap[j]);
+        const mainPos  = phaseBands[j].start + (phaseOffsets[j][col] != null ? phaseOffsets[j][col] : col * (nodeMain + L.gapInner));
         const crossPos = band.start + L.gapCross + row * (nodeCross + L.gapCross);
         const slot = dir === 'LR'
           ? { x: mainPos, y: crossPos, w: L.nodeW, h: L.nodeH }
@@ -1582,6 +1606,7 @@ function drawSvg(state){
     const segsOf = new Map();
     linkRenders.forEach(item=>{ if(item) segsOf.set(item.i, pathSegmentsOf(item.p.d)); });
     const placedBoxes = [];
+    const nodeBoxes = lay.boxes.map(b=> ({ x:b.x, y:b.y, w:b.w, h:b.h }));
     linkRenders.forEach(item=>{
       if(!item || !item.e.label) return;
       const others = [];
@@ -1589,16 +1614,38 @@ function drawSvg(state){
       const clear = (mid)=>{
         const box = labelBoxOf(mid, item.e.label);
         if(others.some(([x1, y1, x2, y2])=> segHitsBox(x1, y1, x2, y2, box))) return false;
+        // ノードの箱に重なると、図形の文字とラベルが混ざって読めなくなる
+        if(nodeBoxes.some(b=> overlaps(box, b))) return false;
         return !placedBoxes.some(b=> overlaps(box, b));
       };
       let mid = item.p.mid;
       if(mid && !clear(mid)){
-        // 真ん中から外側へ、少しずつ離れた位置を試す。最初に空いた所へ置く。
         const own = segsOf.get(item.i) || [];
-        for(const t of [0.38, 0.62, 0.28, 0.72, 0.2, 0.8]){
+        // 1) まず経路に沿って前後へずらす。線の上に載ったままなので、見た目がいちばん素直
+        let found = null;
+        for(const t of [0.38, 0.62, 0.3, 0.7, 0.24, 0.76, 0.18, 0.82, 0.12, 0.88]){
           const cand = pointAt(own, t);
-          if(cand && clear(cand)){ mid = cand; break; }
+          if(cand && clear(cand)){ found = cand; break; }
         }
+        // 2) それでも空かないときは、経路から横へ少しだけ外す。
+        //    戻りの辺のように、ノードのすぐ脇を通る線はどこへずらしても箱に重なるため
+        //    （英語版の「Re-quote」が「Revise the terms」に7px重なっていた）。
+        if(!found){
+          for(const off of [12, -12, 20, -20, 30, -30, 42, -42]){
+            for(const seg of own){
+              const [x1, y1, x2, y2] = seg;
+              const horiz = Math.abs(y1 - y2) < 0.5;
+              for(const u of [0.5, 0.35, 0.65, 0.25, 0.75]){
+                const px = x1 + (x2 - x1) * u, py = y1 + (y2 - y1) * u;
+                const cand = horiz ? { x:px, y:py + off } : { x:px + off, y:py };
+                if(clear(cand)){ found = cand; break; }
+              }
+              if(found) break;
+            }
+            if(found) break;
+          }
+        }
+        if(found) mid = found;
       }
       if(mid){
         item.p.mid = mid;
@@ -1754,7 +1801,7 @@ function renderTo(target, code){
 }
 
 return {
-  VERSION: '1.2.1',
+  VERSION: '1.3.0',
   SHAPES,
   LINK_STYLES,
   isDot,
