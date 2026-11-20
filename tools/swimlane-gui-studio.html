@@ -626,7 +626,7 @@
       <h3>使用ライブラリ</h3>
       <div class="credit-item">
         <div class="credit-name">なし（外部通信なし）</div>
-        <div class="credit-detail">.swim の解析とSVG描画は、このサイトが自作した <code>swimlane.js</code>（下記）で行っています。サードパーティ製ライブラリ・外部通信ともにありません。</div>
+        <div class="credit-detail">.swim の解析とSVG描画は、自作の <code>swimlane.js</code>（下記）で行っています。サードパーティ製ライブラリ・外部通信ともにありません。ライブラリは <a href="https://www.npmjs.com/package/swimlane-diagram" target="_blank" rel="noopener">npm</a> と <a href="https://github.com/Tossie85/swimlane-diagram" target="_blank" rel="noopener">GitHub</a> で公開しています（MIT）。</div>
       </div>
 
       <h3>VS Code の Markdown で ```swimlane を使う</h3>
@@ -635,7 +635,7 @@
       <h3>自分のサイトのMarkdownで ```swimlane を使えるようにする</h3>
       <p>Mermaidと同じように、自分のサイトのMarkdown記法に <code>```swimlane</code> フェンスコードブロックを組み込みたいサイト管理者向けの手順です（tossie85 lab自体もこの方式で記事内に埋め込んでいます）。</p>
       <p>marked.js や markdown-it など多くのMarkdown変換ライブラリは、既定で <code>```swimlane</code> ブロックを <code>&lt;pre&gt;&lt;code class="language-swimlane"&gt;</code> として出力します（CommonMark準拠）。ページ読み込み後に以下のスクリプトを実行すれば、それらを図に置き換えられます。</p>
-      <pre>&lt;script src="swimlane.js"&gt;&lt;/script&gt;
+      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/swimlane-diagram@1.2.1/swimlane.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   document.querySelectorAll('pre code.language-swimlane').forEach(function(codeEl){
     var pre = codeEl.closest('pre');
@@ -650,11 +650,20 @@
       <p>自作のMarkdownパーサーでフェンスの言語ごとに出力先タグを変えられる場合（PHPのParsedownなど）は、<code>&lt;pre class="swimlane"&gt;元のコード&lt;/pre&gt;</code> のように直接出力し、上と同じ要領で <code>pre.swimlane</code> を対象に <code>Swimlane.render()</code> を呼ぶ方がシンプルです。</p>
 
       <h3>ライブラリとして他サイトで使う</h3>
-      <p>この解析・描画エンジンは <code>swimlane.js</code> 1ファイルに切り出してあり、ダウンロードして他のWebサイトにそのまま組み込めます（外部通信なし・依存ライブラリなし）。</p>
-      <p style="margin:0 0 10px;">
-        <a href="../assets/swimlane.js" download>swimlane.js をダウンロード</a>
-      </p>
-      <pre>&lt;script src="swimlane.js"&gt;&lt;/script&gt;
+      <p>この解析・描画エンジンは <code>swimlane.js</code> 1ファイルに切り出してあり、他のWebサイトにそのまま組み込めます（外部通信なし・依存ライブラリなし・MIT）。入手の仕方は3つあります。</p>
+      <div class="credit-item">
+        <div class="credit-name">npm</div>
+        <div class="credit-detail"><code>npm install swimlane-diagram</code><br>Node.js から使う場合や、自分のビルドに取り込む場合はこれ。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">CDN（jsDelivr）</div>
+        <div class="credit-detail"><code>https://cdn.jsdelivr.net/npm/swimlane-diagram@1.2.1/swimlane.js</code><br><strong>版を固定して</strong>読み込んでください（<code>@1.2.1</code> を外すと、次の版が出たときに図の見た目が変わることがあります）。</div>
+      </div>
+      <div class="credit-item" style="margin-top:8px;">
+        <div class="credit-name">ファイルを置く</div>
+        <div class="credit-detail"><a href="https://github.com/Tossie85/swimlane-diagram" target="_blank" rel="noopener">GitHub</a> から <code>swimlane.js</code> を落として、自分のサーバーに置いても構いません。1ファイルだけで動きます。</div>
+      </div>
+      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/swimlane-diagram@1.2.1/swimlane.js"&gt;&lt;/script&gt;
 &lt;div id="diagram"&gt;&lt;/div&gt;
 &lt;script&gt;
   Swimlane.renderTo('#diagram', `swimlane

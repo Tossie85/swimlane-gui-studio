@@ -222,25 +222,17 @@ async function main() {
     'swimlane.js の読み込み'
   );
 
-  // 3. 「ライブラリをダウンロード」リンクは Webview では機能しないので Web版へ誘導する
-  html = replaceExactlyOnce(
-    html,
-    '<a href="../assets/swimlane.js" download>swimlane.js をダウンロード</a>',
-    '<a href="https://tossie85.site/tools/swimlane-gui-studio.html">Web版のツールページ</a> からダウンロードできます',
-    'ライブラリDLリンクの置換'
-  );
-
-  // 4. インライン <script>（1個）に nonce
+  // 3. インライン <script>（1個）に nonce
   html = replaceAllOrFail(html, '<script>', '<script nonce="__NONCE__">', 'インライン script', 1);
 
-  // 5. 本体の <style>（先頭の1個だけ）に nonce。
+  // 4. 本体の <style>（先頭の1個だけ）に nonce。
   //    「.html 保存」用テンプレートの <style> は素の light 配色のまま残す
   html = replaceExactlyOnce(
     html, '<style>\n  :root{', '<style nonce="__NONCE__">\n  :root{',
     '本体 style への nonce 付与'
   );
 
-  // 6. CSP を head に差し込む。
+  // 5. CSP を head に差し込む。
   //    swimlane.js が生成するSVGに style 属性が載るため style は 'unsafe-inline' を許す。
   //    スクリプトは nonce で固定し、外部通信はすべて禁止する（connect-src は default-src 'none' のまま）。
   const csp =
@@ -253,12 +245,12 @@ async function main() {
   const headAnchor = '<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">';
   html = replaceExactlyOnce(html, headAnchor, headAnchor + '\n' + csp, 'CSP の挿入');
 
-  // 7. 配色トークンをVS Codeのテーマ変数へ差し替える。
+  // 6. 配色トークンをVS Codeのテーマ変数へ差し替える。
   //    本体の <style> より後ろ、ページの </head> 直前に置いて :root の値を上書きする。
   //    </head>\n<body> はページ冒頭にしか無い（.html 保存テンプレは </head><body>）。
   html = replaceExactlyOnce(html, '</head>\n<body>', THEME_CSS + '</head>\n<body>', 'テーマ上書きの挿入');
 
-  // 8. VS Code 版 Host を最後に足して上書き。
+  // 7. VS Code 版 Host を最後に足して上書き。
   //    </body>\n</html> はページ末尾にしか無い（.html 保存テンプレは </body></html>）。
   const tailAnchor = '</body>\n</html>';
   html = replaceExactlyOnce(html, tailAnchor, VSCODE_HOST + tailAnchor, 'Host 実装の追記');
