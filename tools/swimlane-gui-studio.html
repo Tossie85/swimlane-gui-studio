@@ -635,7 +635,7 @@
       <h3>自分のサイトのMarkdownで ```swimlane を使えるようにする</h3>
       <p>Mermaidと同じように、自分のサイトのMarkdown記法に <code>```swimlane</code> フェンスコードブロックを組み込みたいサイト管理者向けの手順です（tossie85 lab自体もこの方式で記事内に埋め込んでいます）。</p>
       <p>marked.js や markdown-it など多くのMarkdown変換ライブラリは、既定で <code>```swimlane</code> ブロックを <code>&lt;pre&gt;&lt;code class="language-swimlane"&gt;</code> として出力します（CommonMark準拠）。ページ読み込み後に以下のスクリプトを実行すれば、それらを図に置き換えられます。</p>
-      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/swimlane-diagram@1.3.0/swimlane.js"&gt;&lt;/script&gt;
+      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/swimlane-diagram@1.4.0/swimlane.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   document.querySelectorAll('pre code.language-swimlane').forEach(function(codeEl){
     var pre = codeEl.closest('pre');
@@ -657,13 +657,13 @@
       </div>
       <div class="credit-item" style="margin-top:8px;">
         <div class="credit-name">CDN（jsDelivr）</div>
-        <div class="credit-detail"><code>https://cdn.jsdelivr.net/npm/swimlane-diagram@1.3.0/swimlane.js</code><br><strong>版を固定して</strong>読み込んでください（<code>@1.3.0</code> を外すと、次の版が出たときに図の見た目が変わることがあります）。</div>
+        <div class="credit-detail"><code>https://cdn.jsdelivr.net/npm/swimlane-diagram@1.4.0/swimlane.js</code><br><strong>版を固定して</strong>読み込んでください（<code>@1.4.0</code> を外すと、次の版が出たときに図の見た目が変わることがあります）。</div>
       </div>
       <div class="credit-item" style="margin-top:8px;">
         <div class="credit-name">ファイルを置く</div>
         <div class="credit-detail"><a href="https://github.com/Tossie85/swimlane-diagram" target="_blank" rel="noopener">GitHub</a> から <code>swimlane.js</code> を落として、自分のサーバーに置いても構いません。1ファイルだけで動きます。</div>
       </div>
-      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/swimlane-diagram@1.3.0/swimlane.js"&gt;&lt;/script&gt;
+      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/swimlane-diagram@1.4.0/swimlane.js"&gt;&lt;/script&gt;
 &lt;div id="diagram"&gt;&lt;/div&gt;
 &lt;script&gt;
   Swimlane.renderTo('#diagram', `swimlane
@@ -835,6 +835,15 @@ const isDot = Swimlane.isDot;
 const STAR = '[*]';
 const LANE_COLORS = ['#E3F2FD','#FFF9C4','#C8E6C9','#F8BBD0','#D1C4E9','#FFE0B2','#B2EBF2','#DCEDC8'];
 const NODE_COLORS = ['','#FFFFFF','#FFF9C4','#C8E6C9','#FFCDD2','#BBDEFB','#E1BEE7','#FFE0B2'];
+/* 線の色。塗り色（NODE_COLORS）は淡いので線に使うと見えない。こちらは濃い色を並べる。
+   先頭の '' は「指定なし」で、エンジンの既定色 LINK_COLOR で描かれる */
+const LINK_COLOR = Swimlane.LINK_COLOR || '#42506B';
+const LINK_COLORS = ['', LINK_COLOR, '#D32F2F','#1B5E20','#1565C0','#E65100','#6A1B9A','#9E9E9E'];
+/* 接続一覧に出す記法。LINK_STYLES から引く（記法を増やしてもここは直さなくて済む） */
+const arrowOfStyle = (style)=> {
+  const hit = LINK_STYLES.find(s=>s.v === style);
+  return (hit && hit.arrow) || '->';
+};
 
 /* ============ 汎用ヘルパー ============ */
 function esc(s){
@@ -1287,6 +1296,11 @@ function renderBuilder(){
         </div>
         <div class="field"><label for="slLinkLabel">ラベル（任意）</label><input type="text" id="slLinkLabel" placeholder="例: 承認"></div>
       </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label for="slLinkColor">線の色</label>
+        <input type="color" id="slLinkColor" value="${LINK_COLOR}" data-default="${LINK_COLOR}" data-default-none="1">
+        ${colorPresets('slLinkColor', LINK_COLORS)}
+      </div>
       <button class="add-row-btn" id="slAddLink">＋ 接続を追加</button>
       <button class="add-row-btn is-cancel" id="slLinkCancel" style="display:none; margin-top:6px;">編集をキャンセル</button>
       <div class="item-list" id="slLinkList"></div>
@@ -1516,10 +1530,11 @@ function submitLink(){
   if(!from || !to){ Host.alert('接続先の図形が見つかりませんでした。'); return; }
   const label = document.getElementById('slLinkLabel').value.trim();
   const style = document.getElementById('slLinkStyle').value;
+  const color = colorOf('slLinkColor');
   if(state.editLinkIdx !== null){
-    state.links[state.editLinkIdx] = { from, to, label, style };
+    state.links[state.editLinkIdx] = { from, to, label, style, color };
   }else{
-    state.links.push({ from, to, label, style });
+    state.links.push({ from, to, label, style, color });
   }
   orderToAfterFrom(from, to);
   resetLinkForm(); refreshLists(); regenerateCode();
@@ -1529,6 +1544,9 @@ function fillLinkForm(e){
   document.getElementById('slLinkTo').value = e.to;
   document.getElementById('slLinkLabel').value = e.label || '';
   document.getElementById('slLinkStyle').value = e.style || 'solid';
+  const c = document.getElementById('slLinkColor');
+  c.value = e.color || LINK_COLOR; c.dataset.none = e.color ? '' : '1';
+  clearColorHistory('slLinkColor');   // 別の接続の色に戻せてしまわないように
   document.getElementById('slAddLink').textContent = '✓ 接続を更新';
   document.getElementById('slLinkCancel').style.display = 'flex';
 }
@@ -1651,8 +1669,10 @@ function refreshLists(){
       (e,i)=>{
         const row = document.createElement('div');
         row.className = 'item-row';
-        const arrow = e.style === 'dashed' ? '⇢' : '→';
-        row.innerHTML = `<span class="item-text">${esc(e.from)} ${arrow} ${esc(e.to)}${e.label ? ' [' + esc(e.label) + ']' : ''}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
+        // どの記法で書き出されるかが一覧で分かるように、記号ではなく記法を出す
+        const arrow = arrowOfStyle(e.style);
+        const sw = e.color ? `<span style="display:inline-block;width:12px;height:3px;border-radius:2px;background:${esc(e.color)};flex-shrink:0;"></span>` : '';
+        row.innerHTML = `${sw}<span class="item-text">${esc(e.from)} ${esc(arrow)} ${esc(e.to)}${e.label ? ' [' + esc(e.label) + ']' : ''}</span><button class="edit-btn">✎</button><button class="del-btn">×</button>`;
         row.querySelector('.edit-btn').addEventListener('click', ()=>{ cancelEditing(); state.editLinkIdx = i; fillLinkForm(e); });
         row.querySelector('.del-btn').addEventListener('click', ()=>{
           state.links.splice(i,1);

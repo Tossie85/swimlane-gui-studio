@@ -68,10 +68,29 @@ const DOT_SIZE = 26;
 const DOT_GAP = 34;
 const DOT_SLOT = DOT_SIZE + DOT_GAP;
 const isDot = (shape)=> DOT_SHAPES.includes(shape);
+/* 線種と、それを書くための記法。線が1本なら実線、2本なら破線。`=` にすると太くなる。
+   Mermaid のフローチャートでは `-->` が実線・`==>` が太い実線だが、こちらは
+   swimlane 記法の中での規則性を採るので、どちらも逆の意味になる。
+   SGS は線種セレクトと接続一覧をこの一覧から作るので、記法も一緒に持たせる。 */
 const LINK_STYLES = [
-  { v:'solid',  label:'実線' },
-  { v:'dashed', label:'破線' },
+  { v:'solid',       label:'実線',     arrow:'->'  },
+  { v:'dashed',      label:'破線',     arrow:'-->' },
+  { v:'thick',       label:'太い実線', arrow:'=>'  },
+  { v:'thickDashed', label:'太い破線', arrow:'==>' },
 ];
+const LINK_DEFAULT_STYLE = LINK_STYLES[0];
+/* 接続行を読む正規表現と、連鎖を見つけるための正規表現。長い記法から試す必要がある。
+   上の LINK_STYLES と食い違わないことは test/roundtrip.test.js で見ている */
+const LINK_ARROW_RE = /(==>|=>|-->|->)/;
+const arrowOfStyle = (style)=> (LINK_STYLES.find(s=>s.v === style) || LINK_DEFAULT_STYLE).arrow;
+const styleOfArrow = (arrow)=> (LINK_STYLES.find(s=>s.arrow === arrow) || LINK_DEFAULT_STYLE).v;
+const isThickLink  = (style)=> style === 'thick' || style === 'thickDashed';
+const isDashedLink = (style)=> style === 'dashed' || style === 'thickDashed';
+/* 線の既定色。color を指定しなかったときはこれで描く */
+const LINK_COLOR = '#42506B';
+/* レーンの上に引くフェーズの境目の色。帯の枠（#B9C7DA）より薄くして、
+   図形や線より手前に出てこないようにする */
+const PHASE_RULE = '#D3E1EF';
 function esc(s){
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -131,8 +150,11 @@ function generateCode(state){
   if(state.links.length){
     lines.push('');
     state.links.forEach(e=>{
-      const arrow = e.style === 'dashed' ? '-->' : '->';
-      lines.push(`${e.from} ${arrow} ${e.to}${e.label ? ' ' + quote(e.label) : ''}`);
+      const attrs = [];
+      if(e.color) attrs.push('color=' + e.color);
+      lines.push(`${e.from} ${arrowOfStyle(e.style)} ${e.to}`
+        + (e.label ? ' ' + quote(e.label) : '')
+        + (attrs.length ? ' ' + attrs.join(' ') : ''));
     });
   }
   if(!state.lanes.length && !state.nodes.length){
@@ -205,13 +227,27 @@ function parseCode(text){
       });
       return;
     }
-    // 接続: A -> B "ラベル" / A --> B
-    const link = line.match(/^(\S+)\s*(-->|->)\s*(\S+)(.*)$/);
+    // 接続: A -> B "ラベル" / A --> B / A => B / A ==> B / A -> B color=#D32F2F
+    // 1つめを控えめ(\S+?)にする。欲張りだと `A-->B` の from が `A-` になり、
+    // 線種も破線ではなく実線になっていた（空白を入れた `A --> B` だけが正しく読めていた）。
+    const link = line.match(/^(\S+?)\s*(==>|=>|-->|->)\s*(\S+)(.*)$/);
     if(link){
+      const tail = takeLabel(link[4] || '');
+      // `A -> B -> C` は from=A, to=B になり残りが黙って捨てられていた。はっきり断る
+      if(LINK_ARROW_RE.test(tail.rest)){
+        errors.push(`${lineNo}行目: 1行でつなげるのは2つまでです → ${line}`);
+        return;
+      }
+      const attr = {};
+      tail.rest.split(/\s+/).filter(Boolean).forEach(t=>{
+        const eq = t.indexOf('=');
+        if(eq > 0) attr[t.slice(0, eq)] = t.slice(eq + 1);
+      });
       next.links.push({
         from: link[1], to: link[3],
-        label: takeLabel(link[4] || '').label,
-        style: link[2] === '-->' ? 'dashed' : 'solid',
+        label: tail.label,
+        style: styleOfArrow(link[2]),
+        color: attr.color || '',
       });
       return;
     }
@@ -237,6 +273,7 @@ const LAYOUT = {
   phaseHeaderH: 38,   // フェーズ名の帯
   nodeW: 168, nodeH: 58,
   gapMain: 34,        // フェーズとフェーズの間隔
+  phasePad: 17,       // フェーズ帯の内側の余白（隣の帯と gapMain を分け合った分と同じ値）
   gapInner: 22,       // 同じフェーズ内で流れ方向に並べるときの間隔
   gapCross: 18,       // レーンを横切る向き（分岐で枝を並べたとき）の間隔
 };
@@ -652,7 +689,7 @@ function computeLayout(state){
   const laneRuns = lanes.map(l=> Math.max(1, laneCross.get(l.id) || 0));
 
   const headerMain = dir === 'LR' ? L.laneHeaderW : L.phaseHeaderH;
-  const mainStart = headerMain + leadPad;   // 先頭に開始●があれば、その分だけ流れ方向にずらす
+  const mainStart = headerMain + leadPad + L.phasePad;   // 先頭に開始●があれば、その分だけ流れ方向にずらす。帯の内側の余白も空ける
   const crossStart = dir === 'LR'
     ? (hasPhaseHeader ? L.phaseHeaderH : 0)
     : (hasPhaseHeader ? L.laneHeaderW : 0);
@@ -868,33 +905,50 @@ function computeLayout(state){
       const pid = isDot(b.node.shape) ? dotPhase.get(b.node) : phaseIdOf(b.node);
       const j = phases.findIndex(p=> p.id === pid);
       if(j < 0) return;
-      const s = dir === 'LR' ? b.x : b.y, e = dir === 'LR' ? b.x + b.w : b.y + b.h;
+      let s = dir === 'LR' ? b.x : b.y, e = dir === 'LR' ? b.x + b.w : b.y + b.h;
+      /* ●のラベルは●の枠の外（真下）に白い箱で添えるので、箱の分まで帯に入れる。
+         入れないと最後の●の「完了」が帯の縁の線に触る。寸法は描画側と同じものを使う。 */
+      if(isDot(b.node.shape) && b.node.label){
+        if(dir === 'LR'){
+          const half = labelPixelWidth(b.node.label) / 2, cx = b.x + b.w / 2;
+          s = Math.min(s, cx - half); e = Math.max(e, cx + half);
+        }else{
+          e = Math.max(e, b.y + b.h + LABEL_BOX_H);
+        }
+      }
       lo[j] = Math.min(lo[j], s); hi[j] = Math.max(hi[j], e);
     });
-    // 前の帯の終端を覚えておき、重ならないように順に確定する。
-    // ノードが無いフェーズは既定の幅（phaseRuns基準のサイズ）を保ったまま、位置だけ前の帯に合わせる。
+    // 中身の無いフェーズは、既定の大きさを保ったまま前のフェーズの後ろに置く
+    let tail = null;
+    phases.forEach((p, j)=>{
+      if(lo[j] !== Infinity){ tail = hi[j]; return; }
+      const s = tail != null ? tail + L.gapMain : mainStart;
+      lo[j] = s;
+      hi[j] = s + Math.max(0, phaseBands[j].size - L.phasePad * 2);
+      tail = hi[j];
+    });
+    /* 帯の縁を決める。隣り合う帯はノードどうしの隙間を真ん中で分け合い、地続きに並べる。
+       離して並べていた頃は帯の縁が26px空いて2本並び、レーンの上にフェーズの境界線を
+       引いてもどちらが境目なのか分からなかった。内側の余白 phasePad は、
+       隙間を分け合った分（gapMain の半分）と同じ値にしてあるので、どの帯も同じだけ空く。 */
     let prevEnd = null;
     phases.forEach((p, j)=>{
-      if(lo[j] === Infinity){
-        const s = prevEnd != null ? prevEnd + L.gapMain / 2 : phaseBands[j].start;
-        phaseBands[j].start = s;                    // size は既定値のまま変更しない
-        prevEnd = s + phaseBands[j].size;
-        return;
-      }
-      let s = lo[j] - 6, e = hi[j] + 6;
-      if(prevEnd != null) s = Math.max(s, (prevEnd + lo[j]) / 2);  // 直前とは中間で分ける
-      if(j === 0) s = Math.max(headerMain, s);
+      const s = j === 0
+        ? Math.max(headerMain, lo[0] - L.phasePad)      // 先頭はレーン名の帯にくっつける
+        : Math.max((hi[j - 1] + lo[j]) / 2, prevEnd);   // 以降は前の帯の終端から続ける
+      let e = j === phases.length - 1 ? hi[j] + L.phasePad : (hi[j] + lo[j + 1]) / 2;
       // LRではフェーズ名が上の細い帯（高さ38px固定）に横書きで入る。ノードの位置ぴったりに
       // 詰めると名前がはみ出して切れるので、名前に要る長さは残す。
-      // 帯どうしの間隔は上で名前のぶんを見込んで取ってあるので、ここで広げても隣とぶつからない。
+      // 帯の間隔は上で名前のぶんを見込んで取ってあるので、ここで広げても隣とぶつからない。
       if(hasPhaseHeader && dir === 'LR') e = Math.max(e, s + headerTextWidth(p.label, 12) + 16);
       phaseBands[j].start = s;
       phaseBands[j].size = Math.max(0, e - s);
-      prevEnd = e;
+      prevEnd = s + phaseBands[j].size;
     });
-    // 帯の拡張で末尾が伸びていれば、全体サイズもそれに合わせる（描画が切れないように）
-    const lastBand = phaseBands[phases.length - 1];
-    mainTotal = Math.max(mainTotal, lastBand.start + lastBand.size + trailPad + L.gapMain / 2);
+    /* 図の長さは最後の帯の終端で決める。以前はここに trailPad（終了●の分）と gapMain/2 を
+       足していたが、終了●はもう帯の中に入っているので二重に空けていた
+       （examples/order.swim で最後のフェーズの下に 77px の空白が出ていた）。 */
+    mainTotal = phaseBands[phases.length - 1].start + phaseBands[phases.length - 1].size;
   }
 
   const width  = dir === 'LR' ? mainTotal : crossTotal;
@@ -1191,8 +1245,8 @@ function crossingsAndJunctions(renders){
   return { hopsBy };
 }
 
-function arrowHead(tip){
-  const s = 7;
+function arrowHead(tip, color, thick){
+  const s = thick ? 9 : 7;
   const { x, y, dirn } = tip;
   const pts = {
     right: `${x},${y} ${x-s},${y-s*0.62} ${x-s},${y+s*0.62}`,
@@ -1200,7 +1254,7 @@ function arrowHead(tip){
     down:  `${x},${y} ${x-s*0.62},${y-s} ${x+s*0.62},${y-s}`,
     up:    `${x},${y} ${x-s*0.62},${y+s} ${x+s*0.62},${y+s}`,
   }[dirn];
-  return `<polygon class="sl-arrow" points="${pts}" fill="#42506B"></polygon>`;
+  return `<polygon class="sl-arrow" points="${pts}" fill="${esc(color || LINK_COLOR)}"></polygon>`;
 }
 
 /* ---- エッジ経路の補助（分岐の角出し・ノード回避） ---- */
@@ -1704,6 +1758,17 @@ function drawSvg(state){
     }
   });
 
+  /* フェーズの境目を、レーンの上にも薄く引く。
+     フェーズ名は端の列にしか出ないので、名前が無い側ではノードがどのフェーズに
+     入っているのかを目で辿ることになっていた。帯は地続きなので境目は1本で足りる。 */
+  if(lay.hasPhaseHeader && lay.phaseBands.length > 1){
+    lay.phaseBands.slice(1).forEach(pb=>{
+      out.push(lay.dir === 'LR'
+        ? `<line x1="${pb.start}" y1="${LAYOUT.phaseHeaderH}" x2="${pb.start}" y2="${lay.height}" stroke="${PHASE_RULE}" stroke-width="1"></line>`
+        : `<line x1="${LAYOUT.laneHeaderW}" y1="${pb.start}" x2="${lay.width}" y2="${pb.start}" stroke="${PHASE_RULE}" stroke-width="1"></line>`);
+    });
+  }
+
   // フェーズの見出し
   if(lay.hasPhaseHeader){
     lay.phaseBands.forEach(pb=>{
@@ -1730,16 +1795,21 @@ function drawSvg(state){
   linkRenders.forEach(item=>{
     if(!item) return;
     const { e, i, p } = item;
-    const dash = e.style === 'dashed' ? ' stroke-dasharray="6 4"' : '';
+    // 太線で `6 4` のままだと刻みが詰まって実線に見えるので、太いときは広げる
+    const thick  = isThickLink(e.style);
+    const stroke = e.color || LINK_COLOR;
+    const dash = isDashedLink(e.style)
+      ? (thick ? ' stroke-dasharray="10 6"' : ' stroke-dasharray="6 4"')
+      : '';
     // 見た目だけ角丸＋またぎにする。当たり判定（class="sl-hit"）は直角のままでよい
     const shown = decoratePath(pathSegmentsOf(p.d), hopsBy.get(i) || []) || p.d;
     out.push(`<g>`);
     out.push(`<path class="sl-hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="14" data-pick="link" data-idx="${i}"></path>`);
-    out.push(`<path d="${shown}" fill="none" stroke="#42506B" stroke-width="1.6"${dash} stroke-linecap="round" stroke-linejoin="round" data-pick="link" data-idx="${i}"></path>`);
-    out.push(arrowHead(p.tip));
+    out.push(`<path d="${shown}" fill="none" stroke="${esc(stroke)}" stroke-width="${thick ? 3 : 1.6}"${dash} stroke-linecap="round" stroke-linejoin="round" data-pick="link" data-idx="${i}"></path>`);
+    out.push(arrowHead(p.tip, stroke, thick));
     if(e.label){
       const tw = labelPixelWidth(e.label);
-      out.push(`<rect x="${p.mid.x - tw/2}" y="${p.mid.y - 9}" width="${tw}" height="18" rx="4" fill="#FFFFFF" stroke="#D3E1EF" data-pick="link" data-idx="${i}"></rect>`);
+      out.push(`<rect x="${p.mid.x - tw/2}" y="${p.mid.y - 9}" width="${tw}" height="18" rx="4" fill="#FFFFFF" stroke="${esc(e.color || '#D3E1EF')}" data-pick="link" data-idx="${i}"></rect>`);
       out.push(`<text x="${p.mid.x}" y="${p.mid.y + 4}" text-anchor="middle" font-size="11" fill="#3C516C" data-pick="link" data-idx="${i}">${esc(e.label)}</text>`);
     }
     out.push(`</g>`);
@@ -1758,7 +1828,7 @@ function drawSvg(state){
       if(n.label){
         const tw = labelPixelWidth(n.label);
         const cx = b.x + b.w / 2, base = b.y + b.h + 13;
-        out.push(`<rect x="${cx - tw/2}" y="${base - 13}" width="${tw}" height="18" rx="4" fill="#FFFFFF" stroke="#D3E1EF"></rect>`);
+        out.push(`<rect x="${cx - tw/2}" y="${base - 13}" width="${tw}" height="${LABEL_BOX_H}" rx="4" fill="#FFFFFF" stroke="#D3E1EF"></rect>`);
         out.push(`<text x="${cx}" y="${base}" text-anchor="middle" font-size="11" fill="#3C516C">${esc(n.label)}</text>`);
       }
     }else{
@@ -1801,9 +1871,10 @@ function renderTo(target, code){
 }
 
 return {
-  VERSION: '1.3.0',
+  VERSION: '1.4.0',
   SHAPES,
   LINK_STYLES,
+  LINK_COLOR,
   isDot,
   parse: parseCode,
   generate: generateCode,
