@@ -43,17 +43,17 @@ swimlane
     node e "完了" lane=back phase=p3 shape=enddot
 
     s -> n1
-    n1 -> n2
-    n2 -> d1 "審査を依頼"
-    d1 -> n4 "OK"
-    d1 -> n3 "NG"
-    n3 -> n2 "再見積"
-    n4 -> d2 "出荷を指示"
-    d2 -> n6 "あり"
-    d2 -> n5 "なし"
-    n5 -> n6 "入荷後"
+    n1 => n2
+    n2 => d1 "審査を依頼"
+    d1 => n4 "OK"
+    d1 ==> n3 "NG" color=#D32F2F
+    n3 --> n2 "再見積" color=#D32F2F
+    n4 => d2 "出荷を指示"
+    d2 => n6 "あり"
+    d2 ==> n5 "なし" color=#1565C0
+    n5 --> n6 "入荷後" color=#1565C0
     n6 --> n7 "出荷を通知"
-    n7 -> n8
+    n7 => n8
     n8 -> e
 ```
 

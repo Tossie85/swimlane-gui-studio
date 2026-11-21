@@ -44,17 +44,17 @@ swimlane
     node e "Done" lane=back phase=p3 shape=enddot
 
     s -> n1
-    n1 -> n2
-    n2 -> d1 "Ask for review"
-    d1 -> n4 "OK"
-    d1 -> n3 "NG"
-    n3 -> n2 "Re-quote"
-    n4 -> d2 "Request shipment"
-    d2 -> n6 "Yes"
-    d2 -> n5 "No"
-    n5 -> n6 "On arrival"
+    n1 => n2
+    n2 => d1 "Ask for review"
+    d1 => n4 "OK"
+    d1 ==> n3 "NG" color=#D32F2F
+    n3 --> n2 "Re-quote" color=#D32F2F
+    n4 => d2 "Request shipment"
+    d2 => n6 "Yes"
+    d2 ==> n5 "No" color=#1565C0
+    n5 --> n6 "On arrival" color=#1565C0
     n6 --> n7 "Shipment notice"
-    n7 -> n8
+    n7 => n8
     n8 -> e
 ```
 
